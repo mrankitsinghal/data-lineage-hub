@@ -1,0 +1,256 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+      {
+        "id": 1,
+        "title": "Pipeline Runs Total",
+        "type": "stat",
+        "targets": [
+          {
+            "rawSql": "SELECT sum(value) as total_runs FROM otel.metrics WHERE metric_name = 'pipeline_runs_total' AND timestamp >= now() - interval 1 hour",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "displayName": "Total Runs"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Successful Pipeline Runs",
+        "type": "stat",
+        "targets": [
+          {
+            "rawSql": "SELECT sum(value) as success_runs FROM otel.metrics WHERE metric_name = 'pipeline_runs_success_total' AND timestamp >= now() - interval 1 hour",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "displayName": "Successful Runs",
+            "color": {
+              "mode": "fixed",
+              "fixedColor": "green"
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 6,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Failed Pipeline Runs",
+        "type": "stat",
+        "targets": [
+          {
+            "rawSql": "SELECT sum(value) as failed_runs FROM otel.metrics WHERE metric_name = 'pipeline_runs_failed_total' AND timestamp >= now() - interval 1 hour",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "displayName": "Failed Runs",
+            "color": {
+              "mode": "fixed",
+              "fixedColor": "red"
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 4,
+        "title": "Records Processed Total",
+        "type": "stat",
+        "targets": [
+          {
+            "rawSql": "SELECT sum(value) as total_records FROM otel.metrics WHERE metric_name = 'records_processed_total' AND timestamp >= now() - interval 1 hour",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "displayName": "Records Processed"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        }
+      },
+      {
+        "id": 5,
+        "title": "Pipeline Duration Over Time",
+        "type": "timeseries",
+        "targets": [
+          {
+            "rawSql": "SELECT toStartOfMinute(timestamp) as time_bucket, avg(value) as avg_duration FROM otel.metrics WHERE metric_name = 'pipeline_duration_milliseconds' AND timestamp >= now() - interval 1 hour GROUP BY time_bucket ORDER BY time_bucket",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "displayName": "Average Duration"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 6,
+        "title": "Stage Duration Breakdown",
+        "type": "timeseries",
+        "targets": [
+          {
+            "rawSql": "SELECT toStartOfMinute(timestamp) as time_bucket, attributes['stage_name'] as stage, avg(value) as avg_duration FROM otel.metrics WHERE metric_name = 'stage_duration_milliseconds' AND timestamp >= now() - interval 1 hour GROUP BY time_bucket, stage ORDER BY time_bucket",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "displayName": "Stage Duration"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 7,
+        "title": "OpenTelemetry Spans by Service",
+        "type": "timeseries",
+        "targets": [
+          {
+            "rawSql": "SELECT toStartOfMinute(timestamp) as time_bucket, service_name, count() as span_count FROM otel.traces WHERE timestamp >= now() - interval 1 hour GROUP BY time_bucket, service_name ORDER BY time_bucket",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "displayName": "Span Count"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 8,
+        "title": "Average Span Duration by Operation",
+        "type": "table",
+        "targets": [
+          {
+            "rawSql": "SELECT operation_name, service_name, count() as span_count, avg(duration_ns / 1000000) as avg_duration_ms FROM otel.traces WHERE timestamp >= now() - interval 1 hour GROUP BY operation_name, service_name ORDER BY avg_duration_ms DESC LIMIT 10",
+            "refId": "A",
+            "datasource": {
+              "type": "grafana-clickhouse-datasource",
+              "uid": "PDEE91DDB90597936"
+            }
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "style": "dark",
+    "tags": ["pipeline", "openlineage", "otel"],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Data Pipeline Observability",
+    "uid": null,
+    "version": 1
+}

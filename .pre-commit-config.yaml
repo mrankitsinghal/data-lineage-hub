@@ -1,0 +1,95 @@
+# Pre-commit hooks for code quality
+# Run manually: pre-commit run --all-files
+# Install hooks: pre-commit install
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.11
+    hooks:
+      - id: ruff
+        name: Ruff Linter
+        args: [--fix, --unsafe-fixes]
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: Ruff Formatter
+        types_or: [python, pyi]
+
+  # MyPy - Static type checker
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        name: MyPy Type Checker
+        args: [--config-file=pyproject.toml]
+        additional_dependencies:
+          - types-PyYAML
+          - types-requests
+          - pandas-stubs
+        files: ^src/
+        pass_filenames: false
+        args: [src/]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+      - id: end-of-file-fixer
+        name: Fix End of Files
+      - id: check-yaml
+        name: Check YAML
+        args: [--unsafe]
+      - id: check-json
+        name: Check JSON
+      - id: check-toml
+        name: Check TOML
+      - id: check-added-large-files
+        name: Check Large Files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+        name: Check Merge Conflicts
+      - id: check-docstring-first
+        name: Check Docstring First
+      - id: debug-statements
+        name: Debug Statements
+      - id: mixed-line-ending
+        name: Mixed Line Endings
+        args: [--fix=lf]
+
+  # Poetry checks
+  - repo: https://github.com/python-poetry/poetry
+    rev: 2.0.0
+    hooks:
+      - id: poetry-check
+        name: Poetry Check
+      - id: poetry-lock
+        name: Poetry Lock Check
+        args: [--check]
+
+# Configuration
+default_language_version:
+  python: python3.11
+
+exclude: |
+  (?x)^(
+    \.git/|
+    \.venv/|
+    \.mypy_cache/|
+    \.pytest_cache/|
+    \.ruff_cache/|
+    __pycache__/|
+    build/|
+    dist/|
+    data/|
+    logs/|
+    \.env|
+    \.env\..*|
+    docker/|
+    dashboards/
+  )
+
+ci:
+  autofix_prs: false
+  autoupdate_schedule: weekly
