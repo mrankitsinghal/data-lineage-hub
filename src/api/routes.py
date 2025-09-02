@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src.config import settings
 from src.pipeline.executor import PipelineExecutor
@@ -14,11 +14,21 @@ from src.utils.kafka_client import get_kafka_publisher
 from .models import (
     HealthResponse,
     LineageEventRequest,
+    LineageIngestRequest,
+    LineageIngestResponse,
+    TelemetryIngestRequest, 
+    TelemetryIngestResponse,
     MetricsResponse,
+    NamespaceConfig,
+    NamespaceCreateRequest,
+    NamespaceListResponse,
+    ErrorResponse,
     PipelineRunRequest,
     PipelineRunResponse,
     PipelineStatus,
 )
+from src.services.namespace import namespace_service
+from .middleware import get_current_user, validate_namespace_access
 
 
 logger = structlog.get_logger(__name__)
@@ -204,3 +214,253 @@ def update_pipeline_run(run_id: str, **updates) -> None:
     if run_id in pipeline_runs:
         pipeline_runs[run_id].update(updates)
         logger.debug("Updated pipeline run", run_id=run_id, updates=updates)
+
+
+# =============================================================================
+# Centralized Service Ingestion APIs for External Teams
+# =============================================================================
+
+@router.post("/api/v1/lineage/ingest", response_model=LineageIngestResponse)
+async def ingest_lineage_events(
+    request: LineageIngestRequest,
+    current_user: str | None = Depends(get_current_user)
+):
+    """Centralized endpoint for external teams to send OpenLineage events."""
+    logger.info(
+        "Received lineage ingestion request",
+        namespace=request.namespace,
+        event_count=len(request.events),
+        source=request.source,
+        user=current_user,
+    )
+    
+    # Validate namespace access with authentication
+    await validate_namespace_access(request.namespace, current_user)
+    
+    # Check event quota
+    if not namespace_service.check_event_quota(request.namespace, len(request.events)):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Event quota exceeded for namespace '{request.namespace}'"
+        )
+    
+    # Process events
+    publisher = get_kafka_publisher()
+    accepted = 0
+    rejected = 0
+    errors: list[str] = []
+    
+    for i, event in enumerate(request.events):
+        try:
+            # Add namespace to event metadata
+            if "job" not in event:
+                event["job"] = {}
+            if "namespace" not in event["job"]:
+                event["job"]["namespace"] = request.namespace
+            
+            # Publish to Kafka
+            run_id = event.get("run", {}).get("runId")
+            success = publisher.publish_openlineage_event(event, run_id)
+            
+            if success:
+                accepted += 1
+            else:
+                rejected += 1
+                errors.append(f"Event {i}: Failed to publish to Kafka")
+                
+        except Exception as e:
+            rejected += 1
+            errors.append(f"Event {i}: {str(e)}")
+    
+    logger.info(
+        "Completed lineage ingestion",
+        namespace=request.namespace,
+        accepted=accepted,
+        rejected=rejected,
+        errors=len(errors)
+    )
+    
+    return LineageIngestResponse(
+        accepted=accepted,
+        rejected=rejected,
+        errors=errors,
+        namespace=request.namespace
+    )
+
+
+@router.post("/api/v1/telemetry/ingest", response_model=TelemetryIngestResponse)
+async def ingest_telemetry_data(
+    request: TelemetryIngestRequest,
+    current_user: str | None = Depends(get_current_user)
+):
+    """Centralized endpoint for external teams to send OpenTelemetry data."""
+    logger.info(
+        "Received telemetry ingestion request",
+        namespace=request.namespace,
+        traces_count=len(request.traces),
+        metrics_count=len(request.metrics),
+        source=request.source,
+        user=current_user,
+    )
+    
+    # Validate namespace access with authentication
+    await validate_namespace_access(request.namespace, current_user)
+    
+    publisher = get_kafka_publisher()
+    
+    # Process traces
+    traces_accepted = 0
+    traces_rejected = 0
+    errors: list[str] = []
+    
+    for i, trace in enumerate(request.traces):
+        try:
+            # Add namespace to trace attributes
+            if "resource" not in trace:
+                trace["resource"] = {}
+            if "attributes" not in trace["resource"]:
+                trace["resource"]["attributes"] = {}
+            trace["resource"]["attributes"]["service.namespace"] = request.namespace
+            
+            # Publish to Kafka OTEL spans topic
+            success = publisher.publish_otel_span(trace)
+            
+            if success:
+                traces_accepted += 1
+            else:
+                traces_rejected += 1
+                errors.append(f"Trace {i}: Failed to publish to Kafka")
+                
+        except Exception as e:
+            traces_rejected += 1
+            errors.append(f"Trace {i}: {str(e)}")
+    
+    # Process metrics
+    metrics_accepted = 0
+    metrics_rejected = 0
+    
+    for i, metric in enumerate(request.metrics):
+        try:
+            # Add namespace to metric attributes
+            if "resource" not in metric:
+                metric["resource"] = {}
+            if "attributes" not in metric["resource"]:
+                metric["resource"]["attributes"] = {}
+            metric["resource"]["attributes"]["service.namespace"] = request.namespace
+            
+            # Publish to Kafka OTEL metrics topic
+            success = publisher.publish_otel_metric(metric)
+            
+            if success:
+                metrics_accepted += 1
+            else:
+                metrics_rejected += 1
+                errors.append(f"Metric {i}: Failed to publish to Kafka")
+                
+        except Exception as e:
+            metrics_rejected += 1
+            errors.append(f"Metric {i}: {str(e)}")
+    
+    logger.info(
+        "Completed telemetry ingestion",
+        namespace=request.namespace,
+        traces_accepted=traces_accepted,
+        traces_rejected=traces_rejected,
+        metrics_accepted=metrics_accepted,
+        metrics_rejected=metrics_rejected,
+        errors=len(errors)
+    )
+    
+    return TelemetryIngestResponse(
+        traces_accepted=traces_accepted,
+        metrics_accepted=metrics_accepted,
+        traces_rejected=traces_rejected,
+        metrics_rejected=metrics_rejected,
+        errors=errors,
+        namespace=request.namespace
+    )
+
+
+# =============================================================================
+# Namespace Management APIs
+# =============================================================================
+
+@router.post("/api/v1/namespaces", response_model=NamespaceConfig)
+async def create_namespace(
+    request: NamespaceCreateRequest,
+    current_user: str | None = Depends(get_current_user)
+):
+    """Create a new namespace for team isolation."""
+    logger.info(
+        "Creating new namespace",
+        namespace=request.name,
+        display_name=request.display_name,
+        owners=request.owners,
+        user=current_user,
+    )
+    
+    try:
+        config = namespace_service.create_namespace(request)
+        logger.info("Successfully created namespace", namespace=request.name)
+        return config
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Failed to create namespace", namespace=request.name, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to create namespace")
+
+
+@router.get("/api/v1/namespaces", response_model=NamespaceListResponse)
+async def list_namespaces(current_user: str | None = Depends(get_current_user)):
+    """List accessible namespaces for the user."""
+    logger.debug("Listing namespaces", user_email=current_user)
+    
+    namespaces = namespace_service.list_namespaces(current_user)
+    
+    return NamespaceListResponse(
+        namespaces=namespaces,
+        total=len(namespaces)
+    )
+
+
+@router.get("/api/v1/namespaces/{namespace_name}", response_model=NamespaceConfig)
+async def get_namespace(
+    namespace_name: str, 
+    current_user: str | None = Depends(get_current_user)
+):
+    """Get namespace configuration by name."""
+    # Validate namespace access
+    await validate_namespace_access(namespace_name, current_user)
+    
+    config = namespace_service.get_namespace(namespace_name)
+    
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Namespace '{namespace_name}' not found"
+        )
+    
+    return config
+
+
+@router.patch("/api/v1/namespaces/{namespace_name}", response_model=NamespaceConfig)
+async def update_namespace(
+    namespace_name: str, 
+    updates: dict[str, Any],
+    current_user: str | None = Depends(get_current_user)
+):
+    """Update namespace configuration."""
+    # Validate namespace access (require owner permissions for updates)
+    await validate_namespace_access(namespace_name, current_user, require_owner=True)
+    
+    logger.info("Updating namespace", namespace=namespace_name, updates=list(updates.keys()))
+    
+    config = namespace_service.update_namespace(namespace_name, updates)
+    
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Namespace '{namespace_name}' not found"
+        )
+    
+    return config
