@@ -79,21 +79,18 @@ class LineageIngestRequest(BaseModel):
     """Request model for external teams to send OpenLineage events."""
 
     namespace: str = Field(
-        ..., 
+        ...,
         description="Team namespace (e.g., 'team-data-platform')",
         min_length=3,
-        max_length=50
+        max_length=50,
     )
     events: list[dict[str, Any]] = Field(
-        ..., 
+        ...,
         description="Array of OpenLineage event objects",
         min_items=1,
-        max_items=100
+        max_items=100,
     )
-    source: str | None = Field(
-        None, 
-        description="Event source identifier (optional)"
-    )
+    source: str | None = Field(None, description="Event source identifier (optional)")
 
 
 class LineageIngestResponse(BaseModel):
@@ -109,22 +106,19 @@ class TelemetryIngestRequest(BaseModel):
     """Request model for external teams to send OpenTelemetry data."""
 
     namespace: str = Field(
-        ..., 
+        ...,
         description="Team namespace (e.g., 'team-ml-platform')",
         min_length=3,
-        max_length=50
+        max_length=50,
     )
     traces: list[dict[str, Any]] = Field(
-        default_factory=list, 
-        description="Array of OTLP trace spans"
+        default_factory=list, description="Array of OTLP trace spans"
     )
     metrics: list[dict[str, Any]] = Field(
-        default_factory=list, 
-        description="Array of OTLP metric points"
+        default_factory=list, description="Array of OTLP metric points"
     )
     source: str | None = Field(
-        None, 
-        description="Telemetry source identifier (optional)"
+        None, description="Telemetry source identifier (optional)"
     )
 
 
@@ -143,46 +137,32 @@ class NamespaceConfig(BaseModel):
     """Namespace configuration model."""
 
     name: str = Field(
-        ..., 
-        description="Namespace identifier",
-        min_length=3,
-        max_length=50
+        ..., description="Namespace identifier", min_length=3, max_length=50
     )
     display_name: str = Field(..., description="Human-readable namespace name")
     description: str | None = Field(None, description="Namespace description")
-    
+
     # Access Control
-    owners: list[str] = Field(
-        default_factory=list, 
-        description="Owner email addresses"
-    )
+    owners: list[str] = Field(default_factory=list, description="Owner email addresses")
     viewers: list[str] = Field(
-        default_factory=list, 
-        description="Viewer email addresses"
+        default_factory=list, description="Viewer email addresses"
     )
-    
+
     # Resource Limits
     daily_event_quota: int = Field(
-        default=100000, 
-        description="Maximum events per day",
-        ge=1000,
-        le=10000000
+        default=100000, description="Maximum events per day", ge=1000, le=10000000
     )
     storage_retention_days: int = Field(
-        default=30, 
-        description="Data retention period in days",
-        ge=1,
-        le=365
+        default=30, description="Data retention period in days", ge=1, le=365
     )
-    
+
     # Metadata
     created_at: datetime | None = Field(None, description="Creation timestamp")
     updated_at: datetime | None = Field(None, description="Last update timestamp")
-    
+
     # Custom Properties
     tags: dict[str, str] = Field(
-        default_factory=dict, 
-        description="Custom namespace tags"
+        default_factory=dict, description="Custom namespace tags"
     )
 
 
@@ -190,23 +170,19 @@ class NamespaceCreateRequest(BaseModel):
     """Request model for creating a new namespace."""
 
     name: str = Field(
-        ..., 
+        ...,
         description="Namespace identifier (lowercase, alphanumeric + dashes)",
         min_length=3,
-        max_length=50
+        max_length=50,
     )
     display_name: str = Field(..., description="Human-readable namespace name")
     description: str | None = Field(None, description="Namespace description")
     owners: list[str] = Field(..., description="Owner email addresses", min_items=1)
     daily_event_quota: int = Field(
-        default=100000, 
-        description="Maximum events per day",
-        ge=1000,
-        le=10000000
+        default=100000, description="Maximum events per day", ge=1000, le=10000000
     )
     tags: dict[str, str] = Field(
-        default_factory=dict, 
-        description="Custom namespace tags"
+        default_factory=dict, description="Custom namespace tags"
     )
 
 
@@ -223,4 +199,6 @@ class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error message")
     details: str | None = Field(None, description="Detailed error description")
     namespace: str | None = Field(None, description="Associated namespace")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="Error timestamp"
+    )

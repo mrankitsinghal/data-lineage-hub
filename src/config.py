@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     namespace_quota_events_per_day: int = 100000
     namespace_retention_days: int = 30
 
-    # Organization-wide Service Configuration  
+    # Organization-wide Service Configuration
     hub_service_name: str = "Data Lineage Hub"
     enable_external_ingestion: bool = True
     api_key_validation: bool = False  # Set to true in production

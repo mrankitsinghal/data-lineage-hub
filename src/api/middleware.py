@@ -1,6 +1,5 @@
 """API middleware for authentication and authorization."""
 
-
 import structlog
 from fastapi import HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -32,22 +31,24 @@ class APIKeyValidator:
     def validate_api_key(self, api_key: str) -> str | None:
         """
         Validate API key and return associated user email.
-        
+
         Args:
             api_key: The API key to validate
-            
+
         Returns:
             User email if valid, None if invalid
         """
         return self._api_keys.get(api_key)
 
-    def extract_user_from_token(self, token: HTTPAuthorizationCredentials) -> str | None:
+    def extract_user_from_token(
+        self, token: HTTPAuthorizationCredentials
+    ) -> str | None:
         """
         Extract user email from Bearer token.
-        
+
         Args:
             token: HTTP authorization credentials
-            
+
         Returns:
             User email if valid token, None if invalid
         """
@@ -62,19 +63,18 @@ api_key_validator = APIKeyValidator()
 
 
 async def get_current_user(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials | None = None
+    request: Request, credentials: HTTPAuthorizationCredentials | None = None
 ) -> str | None:
     """
     Get current authenticated user from request.
-    
+
     Args:
         request: FastAPI request object
         credentials: HTTP authorization credentials
-        
+
     Returns:
         User email if authenticated, None if not required
-        
+
     Raises:
         HTTPException: If authentication is required but invalid
     """
@@ -96,7 +96,7 @@ async def get_current_user(
         logger.warning(
             "Authentication required but not provided",
             endpoint=endpoint,
-            has_credentials=bool(credentials)
+            has_credentials=bool(credentials),
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -111,24 +111,24 @@ async def get_current_user(
 
 
 async def validate_namespace_access(
-    namespace: str,
-    user_email: str | None = None,
-    require_owner: bool = False
+    namespace: str, user_email: str | None = None, require_owner: bool = False
 ) -> None:
     """
     Validate user has access to the specified namespace.
-    
+
     Args:
         namespace: Namespace to validate access for
         user_email: User email (if authenticated)
         require_owner: Whether owner-level access is required
-        
+
     Raises:
         HTTPException: If access is denied
     """
     # Skip validation if namespace isolation is disabled
     if not settings.namespace_isolation_enabled:
-        logger.debug("Namespace isolation disabled, allowing access", namespace=namespace)
+        logger.debug(
+            "Namespace isolation disabled, allowing access", namespace=namespace
+        )
         return
 
     # Validate access
@@ -148,29 +148,29 @@ async def validate_namespace_access(
             "Namespace access denied",
             namespace=namespace,
             user_email=user_email,
-            require_owner=require_owner
+            require_owner=require_owner,
         )
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access denied to namespace '{namespace}'"
+            detail=f"Access denied to namespace '{namespace}'",
         )
 
     logger.debug(
         "Namespace access granted",
         namespace=namespace,
         user_email=user_email,
-        require_owner=require_owner
+        require_owner=require_owner,
     )
 
 
 def _requires_authentication(endpoint: str) -> bool:
     """
     Determine if an endpoint requires authentication.
-    
+
     Args:
         endpoint: API endpoint path
-        
+
     Returns:
         True if authentication is required
     """
@@ -193,9 +193,4 @@ def _requires_authentication(endpoint: str) -> bool:
         "/static",
     ]
 
-    for prefix in public_prefixes:
-        if endpoint.startswith(prefix):
-            return False
-
-    # All other endpoints require authentication when enabled
-    return True
+    return all(not endpoint.startswith(prefix) for prefix in public_prefixes)
