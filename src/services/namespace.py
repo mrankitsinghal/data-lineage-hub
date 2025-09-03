@@ -15,7 +15,7 @@ logger = structlog.get_logger(__name__)
 class NamespaceService:
     """Service for managing multi-tenant namespaces."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize namespace service with in-memory storage."""
         self._namespaces: dict[str, NamespaceConfig] = {}
         self._initialize_default_namespace()

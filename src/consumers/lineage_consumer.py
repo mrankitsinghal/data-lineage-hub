@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 import structlog
+from confluent_kafka import Message
 
 from src.config import settings
 from src.utils.kafka_client import KafkaEventConsumer
@@ -54,7 +55,7 @@ class LineageConsumer:
             # No event loop running, create one
             asyncio.run(self._process_message(msg))
 
-    async def _process_message(self, message) -> None:
+    async def _process_message(self, message: Message) -> None:
         """Process a single OpenLineage event message with namespace support."""
         try:
             # Deserialize the message using the centralized method
@@ -99,7 +100,9 @@ class LineageConsumer:
                 message_partition=message.partition(),
             )
 
-    def _extract_namespace(self, message, event_data: dict[str, Any]) -> str | None:
+    def _extract_namespace(
+        self, message: Message, event_data: dict[str, Any]
+    ) -> str | None:
         """Extract namespace from Kafka message headers or event data."""
         # Try to get namespace from message headers first (preferred)
         if hasattr(message, "headers") and message.headers():

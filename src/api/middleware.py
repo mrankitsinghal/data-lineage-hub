@@ -17,7 +17,7 @@ security = HTTPBearer(auto_error=False)
 class APIKeyValidator:
     """Validates API keys and extracts user information."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize API key validator."""
         # In production, this would integrate with an identity provider
         # For demo, we use a simple mapping

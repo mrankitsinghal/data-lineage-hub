@@ -86,9 +86,7 @@ class LineageIngestRequest(BaseModel):
     )
     events: list[dict[str, Any]] = Field(
         ...,
-        description="Array of OpenLineage event objects",
-        min_items=1,
-        max_items=100,
+        description="Array of OpenLineage event objects (min: 1, max: 100 items)",
     )
     source: str | None = Field(None, description="Event source identifier (optional)")
 
@@ -177,7 +175,9 @@ class NamespaceCreateRequest(BaseModel):
     )
     display_name: str = Field(..., description="Human-readable namespace name")
     description: str | None = Field(None, description="Namespace description")
-    owners: list[str] = Field(..., description="Owner email addresses", min_items=1)
+    owners: list[str] = Field(
+        ..., description="Owner email addresses (minimum 1 required)"
+    )
     daily_event_quota: int = Field(
         default=100000, description="Maximum events per day", ge=1000, le=10000000
     )
