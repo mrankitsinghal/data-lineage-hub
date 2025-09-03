@@ -3,12 +3,15 @@
 ## Essential Setup Commands
 
 ### First Time Setup (Recommended)
+
 ```bash
 make dev-setup              # Complete development setup (dependencies + infrastructure + services)
 ```
+
 **What it does**: Creates virtual environment, installs dependencies, starts Docker services, configures Grafana plugins
 
 ### Manual Setup Steps
+
 ```bash
 make install-dev            # Install all dependencies including dev tools
 make start                  # Start infrastructure (Docker services: Kafka, Marquez, ClickHouse, Grafana)
@@ -16,6 +19,7 @@ make setup-grafana-plugins  # Install required Grafana plugins (ClickHouse datas
 ```
 
 ### Environment Management
+
 ```bash
 make venv                   # Create Poetry virtual environment
 make venv-info              # Show virtual environment information
@@ -27,6 +31,7 @@ poetry shell               # Activate Poetry environment
 ## Running Services
 
 ### Core Application Services
+
 ```bash
 make run-api                # Run FastAPI server (port 8000) - central ingestion API
 make run-lineage-consumer   # Run OpenLineage event consumer (Kafka → Marquez)
@@ -34,6 +39,7 @@ make run-otel-consumer      # Run OpenTelemetry consumer (Kafka → ClickHouse)
 ```
 
 ### Infrastructure Services
+
 ```bash
 make start                  # Start all Docker services (Kafka, Marquez, ClickHouse, Grafana)
 make stop                   # Stop all Docker services
@@ -43,6 +49,7 @@ make clean                  # Clean up containers and volumes
 ## Code Quality (MUST RUN BEFORE COMMITTING)
 
 ### Quality Checks
+
 ```bash
 make check                  # Run all quality checks (Ruff + MyPy) - run this first!
 make format                 # Format code with Ruff
@@ -51,6 +58,7 @@ make lint                  # Lint code with Ruff
 ```
 
 ### Testing
+
 ```bash
 make test                  # Run tests with pytest
 poetry run pytest tests/ -v                    # Run all tests with verbose output
@@ -60,6 +68,7 @@ poetry run pytest -m integration               # Run only integration tests
 ```
 
 ### Pre-commit Hooks
+
 ```bash
 poetry run pre-commit run --all-files  # Run pre-commit hooks manually
 poetry run pre-commit install          # Install pre-commit hooks
@@ -68,6 +77,7 @@ poetry run pre-commit install          # Install pre-commit hooks
 ## Debugging & Monitoring
 
 ### Service Health & Status
+
 ```bash
 make status                 # Check all service health (API, Marquez, Docker services)
 make logs                   # View all Docker service logs
@@ -75,14 +85,16 @@ docker logs -f data-lineage-hub-kafka-1  # Follow specific service logs
 ```
 
 ### Individual Service Logs
+
 ```bash
 docker logs -f data-lineage-hub-kafka-1        # Kafka logs
-docker logs -f data-lineage-hub-marquez-1      # Marquez logs  
+docker logs -f data-lineage-hub-marquez-1      # Marquez logs
 docker logs -f data-lineage-hub-clickhouse-1   # ClickHouse logs
 docker logs -f data-lineage-hub-grafana-1      # Grafana logs
 ```
 
 ### Container Management
+
 ```bash
 docker ps -a                           # Check all container statuses
 docker-compose ps                       # Check compose service statuses
@@ -93,6 +105,7 @@ docker exec -it <container-name> bash   # Enter container shell
 ## Testing & Development
 
 ### API Testing
+
 ```bash
 make test-lineage          # Test the central lineage ingestion API
 curl -X POST http://localhost:8000/api/v1/lineage/ingest \
@@ -101,6 +114,7 @@ curl -X POST http://localhost:8000/api/v1/lineage/ingest \
 ```
 
 ### Direct Poetry Commands
+
 ```bash
 poetry install                         # Install dependencies
 poetry install --with dev              # Install with dev dependencies
@@ -112,6 +126,7 @@ poetry run python -m src.consumers.otel_consumer     # Run OTEL consumer directl
 ## Kafka Management & Debugging
 
 ### Kafka Topic Operations
+
 ```bash
 # List all topics
 docker exec -it data-lineage-hub-kafka-1 kafka-topics --list --bootstrap-server localhost:9092
@@ -127,6 +142,7 @@ docker exec -it data-lineage-hub-kafka-1 kafka-topics --delete --topic test-topi
 ```
 
 ### Kafka Consumer Groups
+
 ```bash
 # List consumer groups
 docker exec -it data-lineage-hub-kafka-1 kafka-consumer-groups --list --bootstrap-server localhost:9092
@@ -139,6 +155,7 @@ docker exec -it data-lineage-hub-kafka-1 kafka-consumer-groups --reset-offsets -
 ```
 
 ### Kafka Message Monitoring
+
 ```bash
 # Consume messages from topic
 docker exec -it data-lineage-hub-kafka-1 kafka-console-consumer --topic openlineage-events --from-beginning --bootstrap-server localhost:9092
@@ -150,6 +167,7 @@ docker exec -it data-lineage-hub-kafka-1 kafka-console-producer --topic openline
 ## Database Operations
 
 ### ClickHouse Operations
+
 ```bash
 # Connect to ClickHouse CLI
 docker exec -it data-lineage-hub-clickhouse-1 clickhouse-client
@@ -160,6 +178,7 @@ docker exec -it data-lineage-hub-clickhouse-1 clickhouse-client --query "SELECT 
 ```
 
 ### PostgreSQL (Marquez) Operations
+
 ```bash
 # Connect to PostgreSQL CLI
 docker exec -it data-lineage-hub-postgres-1 psql -U marquez -d marquez
@@ -171,12 +190,14 @@ docker exec -it data-lineage-hub-postgres-1 psql -U marquez -d marquez -c "\dt"
 ## Access Points & URLs
 
 ### Service Access
-- **API Documentation**: http://localhost:8000/docs
-- **API Health Check**: http://localhost:8000/api/v1/health
-- **Marquez UI**: http://localhost:3000 (data lineage visualization)
-- **Grafana**: http://localhost:3001 (admin/admin - metrics dashboards)
+
+- **API Documentation**: <http://localhost:8000/docs>
+- **API Health Check**: <http://localhost:8000/api/v1/health>
+- **Marquez UI**: <http://localhost:3000> (data lineage visualization)
+- **Grafana**: <http://localhost:3001> (admin/admin - metrics dashboards)
 
 ### API Endpoints
+
 ```bash
 # Health check
 curl http://localhost:8000/api/v1/health
@@ -191,11 +212,12 @@ curl http://localhost:5000/api/v1/namespaces
 ## Performance & Optimization
 
 ### Resource Monitoring
+
 ```bash
 # Container resource usage
 docker stats
 
-# Container logs with timestamps  
+# Container logs with timestamps
 docker logs -t data-lineage-hub-kafka-1
 
 # System resource usage
@@ -205,6 +227,7 @@ docker system prune             # Clean up unused Docker resources
 ```
 
 ### Profiling & Debugging
+
 ```bash
 # Run with debugging enabled
 DEBUG=true make run-api
@@ -219,6 +242,7 @@ poetry run python -m pytest tests/ --benchmark-only  # If pytest-benchmark is in
 ## Troubleshooting Commands
 
 ### Common Issues
+
 ```bash
 # Port already in use
 lsof -i :8000                   # Check what's using port 8000
@@ -236,6 +260,7 @@ rm -rf .venv                    # Remove local venv (if needed)
 ```
 
 ### Service Connectivity Testing
+
 ```bash
 # Test Kafka connectivity
 telnet localhost 9092
@@ -243,7 +268,7 @@ telnet localhost 9092
 # Test API connectivity
 curl -I http://localhost:8000
 
-# Test Marquez connectivity  
+# Test Marquez connectivity
 curl -I http://localhost:3000
 
 # Test ClickHouse connectivity
@@ -251,9 +276,10 @@ curl http://localhost:8123/ping
 ```
 
 ## Helpful Aliases (Add to ~/.bashrc or ~/.zshrc)
+
 ```bash
 alias dlh-start="make start"
-alias dlh-stop="make stop" 
+alias dlh-stop="make stop"
 alias dlh-api="make run-api"
 alias dlh-consumer="make run-lineage-consumer"
 alias dlh-check="make check"

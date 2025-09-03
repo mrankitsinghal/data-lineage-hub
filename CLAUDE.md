@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Data Lineage Hub POC demonstrating data pipeline observability using OpenLineage and Marquez for data lineage tracking. The system provides a centralized service architecture where teams can use the SDK to send lineage events to the central hub.
 
 ### Architecture Overview
+
 - **OpenLineage**: Lineage events → Kafka → Marquez (data lineage visualization)
 - **Centralized Service**: Teams use SDK decorators to send events to central hub
 - **Multi-tenant**: Namespace-based isolation for different teams
@@ -18,6 +19,7 @@ Data Lineage Hub POC demonstrating data pipeline observability using OpenLineage
 ## Essential Commands
 
 ### Setup & Environment
+
 ```bash
 make dev-setup              # Complete development setup (recommended first command)
 make install-dev            # Install all dependencies including dev tools
@@ -26,6 +28,7 @@ poetry shell                # Activate Poetry environment
 ```
 
 ### Running Services
+
 ```bash
 make start                  # Start infrastructure (Docker services: Kafka, Marquez, ClickHouse, Grafana)
 make setup-grafana-plugins  # Install required Grafana plugins (ClickHouse datasource)
@@ -67,6 +70,7 @@ make test-pipeline
 ```
 
 ### Debugging & Monitoring
+
 ```bash
 make status                 # Check all service health
 make logs                   # View Docker service logs
@@ -79,7 +83,7 @@ docker logs -f data-lineage-hub-kafka-1  # Follow specific service logs
 
 After recent reorganization, all code is now unified under `src/` with clean separation:
 
-```
+```text
 src/
 ├── api/                    # FastAPI central ingestion endpoints
 ├── consumers/              # Kafka event consumers (lineage → Marquez)
@@ -123,6 +127,7 @@ tests/
 1. **Team Integration**: Teams import `from src.sdk` directly
 2. **Decorator Usage**: Add `@lineage_track` to pipeline functions
 3. **Dataset Specification**: Use dict format for inputs/outputs:
+
    ```python
    from src.sdk import lineage_track
 
@@ -131,6 +136,7 @@ tests/
        outputs=[{"type": "s3", "name": "s3://bucket/output.parquet", "format": "parquet", "namespace": "processed"}]
    )
    ```
+
 4. **Event Processing**: SDK sends events to central hub → Kafka → Marquez
 
 ### Data Storage Layer
@@ -155,19 +161,23 @@ tests/
 ## Key Integration Points
 
 ### OpenLineage Events
+
 Events are structured with:
+
 - `eventType`: START, COMPLETE, FAIL
 - `job`: Contains namespace, name, facets
 - `run`: Contains runId, facets
 - `inputs`/`outputs`: Dataset information with schemas
 
 ### Kafka Message Flow
+
 - **Producer**: Uses confluent-kafka Producer with delivery callbacks
 - **Consumer**: Uses confluent-kafka Consumer with auto-commit
 - **Serialization**: JSON encoding with UTF-8
 - **Keys**: run_id for OpenLineage events, namespace-based partitioning
 
 ### Consumer Processing
+
 - LineageConsumer forwards OpenLineage events immediately to maintain real-time lineage
 - Namespace-based event routing for multi-tenant isolation
 
@@ -207,7 +217,7 @@ Hooks run automatically on commit. Manual run: `poetry run pre-commit run --all-
 
 ### Container Startup Issues
 
-**Kafka Container Fails to Start**
+#### Kafka Container Fails to Start
 
 - **Symptom**: `ClassNotFoundException: io.confluent.metrics.reporter.ConfluentMetricsReporter`
 - **Solution**: This is resolved in the current configuration. If you encounter this, remove Confluent metrics reporter settings from docker-compose.yml:
@@ -218,7 +228,7 @@ Hooks run automatically on commit. Manual run: `poetry run pre-commit run --all-
   # KAFKA_CONFLUENT_METRICS_REPORTER_*
   ```
 
-**Grafana Container Fails to Start**
+#### Grafana Container Fails to Start
 
 - **Symptom**: `failed to install plugin grafana-clickhouse-datasource: tls: failed to verify certificate`
 - **Solution**: The ClickHouse plugin is now installed manually after container startup:
@@ -235,7 +245,7 @@ Hooks run automatically on commit. Manual run: `poetry run pre-commit run --all-
   make setup-grafana-plugins  # Automated plugin installation and Grafana restart
   ```
 
-**General Container Issues**
+#### General Container Issues
 
 - Check container status: `docker ps -a`
 - Check specific logs: `docker logs <container-name>`

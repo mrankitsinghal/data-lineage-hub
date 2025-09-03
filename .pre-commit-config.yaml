@@ -1,3 +1,4 @@
+---
 # Pre-commit hooks for code quality
 # Run manually: pre-commit run --all-files
 # Install hooks: pre-commit install
@@ -21,14 +22,13 @@ repos:
     hooks:
       - id: mypy
         name: MyPy Type Checker
-        args: [--config-file=pyproject.toml]
+        args: [--config-file=pyproject.toml, src/]
         additional_dependencies:
           - types-PyYAML
           - types-requests
           - pandas-stubs
         files: ^src/
         pass_filenames: false
-        args: [src/]
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks

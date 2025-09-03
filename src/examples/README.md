@@ -7,6 +7,7 @@ The pipeline code from `src/pipeline/` has been updated to use the new simplifie
 ## Key Changes
 
 ### Before (Complex Auto-Detection)
+
 ```python
 @openlineage_job(
     job_name="extract_stage",
@@ -18,6 +19,7 @@ def extract(self, input_path: str) -> pd.DataFrame:
 ```
 
 ### After (Simple Dict Specifications)
+
 ```python
 @lineage_track(
     job_name="extract_stage",
@@ -37,6 +39,7 @@ def extract(self, input_path: str) -> pd.DataFrame:
 ## Updated Examples
 
 ### 1. `pipeline_stages_example.py`
+
 - **Extract Stage**: `file` → `dataframe`
 - **Transform Stage**: `dataframe` → `dataframe`
 - **Load Stage**: `dataframe` → `file`
@@ -44,6 +47,7 @@ def extract(self, input_path: str) -> pd.DataFrame:
 **Lineage Chain**: `extract_stage → extracted_df → transform_stage → transformed_df → load_stage`
 
 ### 2. `pipeline_executor_example.py`
+
 - **Complete ETL Orchestrator**: Overall pipeline tracking
 - **Multi-team Examples**: Data Engineering, Analytics, ML pipelines
 - **Different Data Sources**: S3, ClickHouse, Kafka, APIs, DataFrames
@@ -52,24 +56,27 @@ def extract(self, input_path: str) -> pd.DataFrame:
 
 Jobs are now connected through **dataset lineage chains** rather than explicit parent job IDs:
 
-```
+```text
 Job A outputs Dataset X → Job B inputs Dataset X = Job A is upstream of Job B
 ```
 
-### Example Lineage Chains:
+### Example Lineage Chains
 
 1. **ETL Pipeline**:
-   ```
+
+   ```text
    extract_stage → extracted_df → transform_stage → transformed_df → load_stage
    ```
 
 2. **Data Engineering Pipeline**:
-   ```
+
+   ```text
    s3_to_warehouse_pipeline → warehouse.processed_events → daily_business_metrics
    ```
 
 3. **ML Pipeline**:
-   ```
+
+   ```text
    feature_engineering_pipeline → feature_matrix_v2.parquet → model_training_pipeline
    ```
 
@@ -84,12 +91,14 @@ Job A outputs Dataset X → Job B inputs Dataset X = Job A is upstream of Job B
 ## Running the Examples
 
 ### Basic ETL Pipeline
+
 ```bash
 cd sdk/examples/
 python pipeline_stages_example.py
 ```
 
 ### Complete Multi-Team Examples
+
 ```bash
 cd sdk/examples/
 python pipeline_executor_example.py

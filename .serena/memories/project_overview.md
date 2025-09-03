@@ -1,9 +1,11 @@
 # Data Lineage Hub - Project Overview
 
 ## Architecture Summary
+
 Data Lineage Hub is a **centralized enterprise service** that provides data pipeline observability using OpenLineage and OpenTelemetry. The system has evolved from a standalone POC to a **unified service architecture** where teams use the SDK to send lineage events to the central hub.
 
 ## Core Architecture Principles
+
 - **Centralized Service**: Single hub for all data lineage events across teams
 - **Multi-tenant**: Namespace-based isolation for different teams/organizations
 - **SDK-driven**: Teams integrate via decorators and client libraries
@@ -13,7 +15,7 @@ Data Lineage Hub is a **centralized enterprise service** that provides data pipe
 
 All code is now consolidated under `src/` with clean separation:
 
-```
+```text
 src/
 ├── main.py                 # FastAPI application entry point
 ├── config.py              # Centralized settings (Pydantic)
@@ -35,7 +37,7 @@ src/
 ├── sdk/                   # ✅ Unified SDK (teams import from src.sdk)
 │   ├── client.py          # LineageHubClient, TelemetryClient, BatchingLineageClient
 │   ├── decorators.py      # @lineage_track, @telemetry_track
-│   ├── config.py          # SDK configuration management  
+│   ├── config.py          # SDK configuration management
 │   ├── models.py          # Pydantic models for lineage events
 │   ├── types.py           # Type definitions (AdapterType, DataFormat, DatasetSpec)
 │   └── cli.py             # Command-line interface
@@ -54,51 +56,60 @@ tests/
 ## Data Flow Architecture
 
 ### 1. Team SDK Integration Flow
-```
+
+```text
 Team Code → @lineage_track decorator → LineageHubClient → Central API → Kafka → Consumers → Storage/Visualization
 ```
 
 1. **Team Integration**: Teams `from src.sdk import lineage_track`
 2. **Decorator Usage**: Add `@lineage_track` to pipeline functions
 3. **Dataset Specification**: Dict-based input/output specs:
+
    ```python
    @lineage_track(
        inputs=[{"type": "mysql", "name": "users.table", "format": "table", "namespace": "prod-db"}],
        outputs=[{"type": "s3", "name": "s3://bucket/output.parquet", "format": "parquet", "namespace": "processed"}]
    )
    ```
+
 4. **Central Ingestion**: SDK sends events to FastAPI endpoints
 5. **Event Processing**: API → Kafka → Consumers → Storage
 
 ### 2. OpenLineage Flow: Real-time Lineage
-```
+
+```text
 SDK → /api/v1/lineage/ingest → KafkaEventPublisher → openlineage-events topic → LineageConsumer → Marquez API → Lineage UI
 ```
 
 ### 3. Telemetry Flow: Performance Metrics
-```
+
+```text
 SDK → /api/v1/telemetry/ingest → KafkaEventPublisher → otel-spans/otel-metrics topics → OTelConsumer → ClickHouse → Grafana
 ```
 
 ## Key Components Detail
 
 ### Central API Service (src/main.py)
+
 - FastAPI application with lifespan management
 - OpenTelemetry instrumentation for internal monitoring
 - CORS middleware for cross-origin requests
 - Routes: health check, lineage ingestion, telemetry ingestion, namespace management
 
 ### SDK Architecture (src/sdk/)
+
 - **Clients**: `LineageHubClient` (HTTP), `TelemetryClient` (OTEL), `BatchingLineageClient` (batched events)
 - **Decorators**: `@lineage_track`, `@telemetry_track` for automatic instrumentation
 - **Configuration**: Environment-based config with `LineageHubConfig`
 - **Models**: Pydantic models ensuring type safety
 
 ### Consumer Services
+
 - **LineageConsumer**: Forwards OpenLineage events to Marquez immediately (real-time lineage)
 - **OTelConsumer**: Processes OTEL spans/metrics to ClickHouse for analytics
 
 ### Multi-tenant Features
+
 - **Namespace Isolation**: Each team gets isolated view in Marquez
 - **Cross-namespace Discovery**: Optional data discovery across teams
 - **Rate Limiting**: Per-namespace request limiting
@@ -107,6 +118,7 @@ SDK → /api/v1/telemetry/ingest → KafkaEventPublisher → otel-spans/otel-met
 ## Technology Stack
 
 ### Core Technologies
+
 - **FastAPI**: REST API framework
 - **Kafka**: Event streaming (confluent-kafka-python)
 - **Marquez**: Data lineage visualization (OpenLineage compatible)
@@ -114,6 +126,7 @@ SDK → /api/v1/telemetry/ingest → KafkaEventPublisher → otel-spans/otel-met
 - **Grafana**: Metrics visualization and dashboards
 
 ### Development & Quality
+
 - **Poetry**: Dependency management
 - **Pydantic**: Configuration management and data validation
 - **Ruff**: Fast Python linter and formatter
@@ -122,6 +135,7 @@ SDK → /api/v1/telemetry/ingest → KafkaEventPublisher → otel-spans/otel-met
 - **pre-commit**: Code quality hooks
 
 ### Observability
+
 - **OpenTelemetry**: Internal service instrumentation
 - **structlog**: Structured logging
 - **Prometheus**: Metrics export (via OTEL)
@@ -134,7 +148,7 @@ services:
   - zookeeper: Kafka coordination
   - marquez: Data lineage storage and UI
   - postgres: Marquez database
-  - clickhouse: Metrics time-series storage  
+  - clickhouse: Metrics time-series storage
   - grafana: Metrics visualization
   - otel-collector: OpenTelemetry collection pipeline
 ```
@@ -142,24 +156,28 @@ services:
 ## Enterprise Features
 
 ### Multi-tenancy
+
 - Namespace-based isolation
 - Team-specific dataset views
 - Cross-team data discovery
 - Namespace quota management
 
 ### Security & Compliance
+
 - API key validation (configurable)
 - Rate limiting per namespace
 - Audit logging
 - RBAC for namespace permissions
 
 ### Monitoring & Alerting
+
 - Health check dependencies
 - Slack webhook integration
 - Metrics export (30s intervals)
 - Service-level monitoring via OpenTelemetry
 
 ## Access Points
-- **API Documentation**: http://localhost:8000/docs
-- **Marquez Lineage UI**: http://localhost:3000
-- **Grafana Dashboards**: http://localhost:3001 (admin/admin)
+
+- **API Documentation**: <http://localhost:8000/docs>
+- **Marquez Lineage UI**: <http://localhost:3000>
+- **Grafana Dashboards**: <http://localhost:3001> (admin/admin)

@@ -35,6 +35,7 @@ graph TD
 ```
 
 ### **Key Components:**
+
 - **Central API**: Ingestion service for OpenLineage events from team SDKs
 - **SDK**: `data-lineage-hub-sdk` with `@lineage_track` decorator for teams
 - **OpenLineage**: Standard lineage events → Kafka → Marquez
@@ -128,27 +129,32 @@ graph TB
 ### Architecture Components
 
 #### **SDK Layer**
+
 - **@lineage_track**: Decorator for automatic data lineage capture with dataset specifications
 - **@telemetry_track**: Decorator for OpenTelemetry instrumentation and distributed tracing
 - **LineageHubClient**: Async HTTP client for lineage event submission with retry logic
 - **TelemetryClient**: OTEL instrumentation client for spans and metrics collection
 
 #### **API Layer**
+
 - **FastAPI Server**: Central ingestion service (port 8000) with OpenAPI documentation
 - **Lineage Routes**: `/api/v1/lineage/ingest` - OpenLineage event ingestion with namespace support
 - **Telemetry Routes**: `/api/v1/telemetry/ingest` - OTEL data ingestion for spans and metrics
 
 #### **Event Transport**
+
 - **Apache Kafka**: Event streaming platform with namespace-aware partitioning and headers
 - **openlineage-events**: Topic for data lineage events with namespace routing
 - **otel-spans**: Topic for distributed tracing spans with trace ID correlation
 - **otel-metrics**: Topic for application metrics with service name grouping
 
 #### **Consumers**
+
 - **OpenLineage Consumer**: Processes lineage events with immediate forwarding to Marquez
 - **OpenTelemetry Consumer**: Batch processes OTEL data with size-based (100) and time-based (30s) flushing
 
 #### **Storage & Visualization**
+
 - **Marquez**: OpenLineage-compatible lineage service with RESTful API (port 5000)
 - **PostgreSQL**: Marquez backend database for lineage graph storage
 - **ClickHouse**: Time-series database optimized for observability data with Map columns
@@ -427,23 +433,29 @@ poetry install --with dev
 
 ### Container Startup Issues
 
-**Kafka Container Fails to Start**
+#### Kafka Container Fails to Start
+
 - **Symptom**: `ClassNotFoundException: io.confluent.metrics.reporter.ConfluentMetricsReporter`
 - **Solution**: This is resolved in the current configuration. If encountered, ensure docker-compose.yml doesn't include Confluent metrics reporter settings.
 
-**Grafana Container Fails to Start**
+#### Grafana Container Fails to Start
+
 - **Symptom**: `failed to install plugin grafana-clickhouse-datasource: tls: failed to verify certificate`
 - **Solution**: Use the automated plugin installation:
+
   ```bash
   make setup-grafana-plugins
   ```
+
 - **Manual alternative**:
+
   ```bash
   docker exec grafana grafana cli plugins install grafana-clickhouse-datasource
   docker restart grafana
   ```
 
-**General Container Issues**
+#### General Container Issues
+
 ```bash
 # Check container status
 docker ps -a
@@ -526,26 +538,31 @@ Recommended extensions will be suggested when you open the project.
 ## 🛠️ Technology Stack
 
 ### **Central Service Layer**
+
 - **Python 3.11+** with FastAPI for central ingestion API
 - **Poetry** for dependency management
 - **Ruff** for code formatting and linting
 
-### **SDK Layer**
+### **SDK Technology**
+
 - **data-lineage-hub-sdk** - Lightweight Python package for teams
 - **@lineage_track decorator** - Simple integration pattern
 - **Dict-based specifications** - Explicit dataset definitions
 
 ### **Data Lineage Stack**
+
 - **OpenLineage** for standardized lineage events
 - **Apache Kafka** for lineage event streaming
 - **Marquez** for lineage storage and visualization
 - **PostgreSQL** for Marquez backend storage
 
 ### **Optional Observability Stack**
+
 - **ClickHouse** for metrics storage (time-series data)
 - **Grafana** for organization-wide dashboards
 
 ### **Infrastructure**
+
 - **Docker & Docker Compose** for containerized services
 - **Multi-tenant architecture** with namespace isolation
 
