@@ -6,7 +6,7 @@ import inspect
 import time
 import uuid
 from collections.abc import Callable
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 import structlog
@@ -389,6 +389,19 @@ async def _execute_with_lineage_async(
     except Exception as e:
         logger.warning("Failed to send START event", error=str(e))
 
+    # Send pipeline metrics for START
+    try:
+        await _send_pipeline_metrics(
+            event_type="START",
+            job_name=job_name,
+            namespace=namespace,
+            run_id=run_id,
+            inputs=inputs,
+            outputs=outputs,
+        )
+    except Exception as e:
+        logger.warning("Failed to send START metrics", error=str(e))
+
     start_time = time.time()
 
     try:
@@ -417,6 +430,21 @@ async def _execute_with_lineage_async(
         except Exception as e:
             logger.warning("Failed to send COMPLETE event", error=str(e))
 
+        # Send pipeline metrics for COMPLETE
+        try:
+            duration_ms = (time.time() - start_time) * 1000  # Convert to milliseconds
+            await _send_pipeline_metrics(
+                event_type="COMPLETE",
+                job_name=job_name,
+                namespace=namespace,
+                run_id=run_id,
+                duration_ms=duration_ms,
+                inputs=inputs,
+                outputs=outputs,
+            )
+        except Exception as e:
+            logger.warning("Failed to send COMPLETE metrics", error=str(e))
+
         return result
 
     except Exception as e:
@@ -442,6 +470,21 @@ async def _execute_with_lineage_async(
                 await client.send_lineage_events([fail_event])
         except Exception as send_error:
             logger.warning("Failed to send FAIL event", error=str(send_error))
+
+        # Send pipeline metrics for FAIL
+        try:
+            duration_ms = (time.time() - start_time) * 1000  # Convert to milliseconds
+            await _send_pipeline_metrics(
+                event_type="FAIL",
+                job_name=job_name,
+                namespace=namespace,
+                run_id=run_id,
+                duration_ms=duration_ms,
+                inputs=inputs,
+                outputs=outputs,
+            )
+        except Exception as metrics_error:
+            logger.warning("Failed to send FAIL metrics", error=str(metrics_error))
 
         raise
 
@@ -490,6 +533,19 @@ def _execute_with_lineage_sync_async(
             except Exception as e:
                 logger.warning("Failed to send START event", error=str(e))
 
+            # Send pipeline metrics for START
+            try:
+                await _send_pipeline_metrics(
+                    event_type="START",
+                    job_name=job_name,
+                    namespace=namespace,
+                    run_id=run_id,
+                    inputs=inputs,
+                    outputs=outputs,
+                )
+            except Exception as e:
+                logger.warning("Failed to send START metrics", error=str(e))
+
             # Execute the actual function
             start_time = time.time()
 
@@ -514,6 +570,23 @@ def _execute_with_lineage_sync_async(
                 except Exception as e:
                     logger.warning("Failed to send COMPLETE event", error=str(e))
 
+                # Send pipeline metrics for COMPLETE
+                try:
+                    duration_ms = (
+                        time.time() - start_time
+                    ) * 1000  # Convert to milliseconds
+                    await _send_pipeline_metrics(
+                        event_type="COMPLETE",
+                        job_name=job_name,
+                        namespace=namespace,
+                        run_id=run_id,
+                        duration_ms=duration_ms,
+                        inputs=inputs,
+                        outputs=outputs,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to send COMPLETE metrics", error=str(e))
+
                 return result
 
             except Exception as e:
@@ -535,6 +608,25 @@ def _execute_with_lineage_sync_async(
                     await client.send_lineage_events([fail_event])
                 except Exception as send_error:
                     logger.warning("Failed to send FAIL event", error=str(send_error))
+
+                # Send pipeline metrics for FAIL
+                try:
+                    duration_ms = (
+                        time.time() - start_time
+                    ) * 1000  # Convert to milliseconds
+                    await _send_pipeline_metrics(
+                        event_type="FAIL",
+                        job_name=job_name,
+                        namespace=namespace,
+                        run_id=run_id,
+                        duration_ms=duration_ms,
+                        inputs=inputs,
+                        outputs=outputs,
+                    )
+                except Exception as metrics_error:
+                    logger.warning(
+                        "Failed to send FAIL metrics", error=str(metrics_error)
+                    )
 
                 raise
 
@@ -573,6 +665,135 @@ def _execute_with_lineage_sync(
     )
 
     return func(*args, **kwargs)
+
+
+async def _send_pipeline_metrics(
+    event_type: str,
+    job_name: str,
+    namespace: str,
+    run_id: str,
+    duration_ms: float | None = None,
+    record_count: int | None = None,
+    inputs: list[dict[str, Any]] | None = None,
+    outputs: list[dict[str, Any]] | None = None,
+) -> None:
+    """Send pipeline metrics to the telemetry API."""
+    try:
+        # Use TelemetryClient which internally uses LineageHubClient
+        telemetry_client = TelemetryClient(namespace=namespace)
+
+        timestamp = datetime.now(UTC).isoformat()
+
+        metrics = []
+
+        # Pipeline run metrics
+        if event_type == "START":
+            metrics.append(
+                {
+                    "name": "pipeline_runs_total",
+                    "value": 1,
+                    "timestamp": timestamp,
+                    "attributes": {
+                        "job_name": job_name,
+                        "run_id": run_id,
+                        "namespace": namespace,
+                    },
+                }
+            )
+        elif event_type == "COMPLETE":
+            metrics.extend(
+                [
+                    {
+                        "name": "pipeline_runs_success_total",
+                        "value": 1,
+                        "timestamp": timestamp,
+                        "attributes": {
+                            "job_name": job_name,
+                            "run_id": run_id,
+                            "namespace": namespace,
+                        },
+                    },
+                ]
+            )
+
+            # Duration metric
+            if duration_ms is not None:
+                metrics.append(
+                    {
+                        "name": "pipeline_duration_milliseconds",
+                        "value": duration_ms,
+                        "timestamp": timestamp,
+                        "attributes": {
+                            "job_name": job_name,
+                            "run_id": run_id,
+                            "namespace": namespace,
+                        },
+                    }
+                )
+
+            # Records processed metric
+            if record_count is not None:
+                metrics.append(
+                    {
+                        "name": "records_processed_total",
+                        "value": record_count,
+                        "timestamp": timestamp,
+                        "attributes": {
+                            "job_name": job_name,
+                            "run_id": run_id,
+                            "namespace": namespace,
+                            "record_source": "estimated",
+                        },
+                    }
+                )
+
+        elif event_type == "FAIL":
+            metrics.append(
+                {
+                    "name": "pipeline_runs_failed_total",
+                    "value": 1,
+                    "timestamp": timestamp,
+                    "attributes": {
+                        "job_name": job_name,
+                        "run_id": run_id,
+                        "namespace": namespace,
+                    },
+                }
+            )
+
+        if metrics:
+            await telemetry_client.send_metrics(metrics, namespace=namespace)
+            logger.debug(
+                "Successfully sent pipeline metrics",
+                event_type=event_type,
+                metrics_count=len(metrics),
+                job_name=job_name,
+            )
+
+        await telemetry_client.close()
+
+    except Exception as e:
+        logger.warning(
+            "Failed to send pipeline metrics",
+            error=str(e),
+            event_type=event_type,
+            job_name=job_name,
+        )
+
+
+def _estimate_record_count(
+    inputs: list[dict[str, Any]] | None, outputs: list[dict[str, Any]] | None
+) -> int:
+    """Estimate record count based on dataset types (simple heuristic)."""
+    # Simple heuristic: assume 1000 records per dataset for demo purposes
+    # In real implementation, this could be based on dataset metadata
+    total_datasets = 0
+    if inputs:
+        total_datasets += len(inputs)
+    if outputs:
+        total_datasets += len(outputs)
+
+    return total_datasets * 1000  # Rough estimate for demo
 
 
 def _create_lineage_event(
