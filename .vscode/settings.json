@@ -1,0 +1,180 @@
+{
+    // Python Configuration
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.poetryPath": "poetry",
+    "python.languageServer": "Pylance",
+    "python.linting.enabled": false,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "python.linting.mypyEnabled": false,
+    "python.formatting.provider": "none",
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": true,
+            "source.organizeImports": true
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.extraPaths": [
+        "./src"
+    ],
+    "python.analysis.indexing": true,
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "src",
+            "depth": 10
+        }
+    ],
+    "python.analysis.include": [
+        "src/**"
+    ],
+    "python.analysis.exclude": [
+        ".git/**",
+        ".venv/**",
+        ".mypy_cache/**",
+        ".pytest_cache/**",
+        ".ruff_cache/**",
+        "__pycache__/**",
+        "build/**",
+        "dist/**",
+        "data/**",
+        "logs/**",
+        ".env",
+        ".env.*",
+        "docker/**",
+        "dashboards/**"
+    ],
+    // Editor Configuration
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+        "source.fixAll": true
+    },
+    "editor.rulers": [
+        88
+    ],
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.trimAutoWhitespace": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    // File Associations
+    "files.associations": {
+        "*.yml": "yaml",
+        "*.yaml": "yaml",
+        "docker-compose*.yml": "dockercompose",
+        "Dockerfile*": "dockerfile",
+        "Makefile": "makefile",
+        "*.env*": "dotenv",
+        "pyproject.toml": "toml",
+        "poetry.lock": "toml",
+        ".ruff.toml": "toml"
+    },
+    // File Exclusions
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.venv": false,
+        "**/venv": true,
+        "**/.pytest_cache": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/node_modules": true,
+        "**/.DS_Store": true,
+        "**/poetry.lock": false
+    },
+    // Search Configuration
+    "search.exclude": {
+        "**/.venv": true,
+        "**/venv": true,
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/.mypy_cache": true,
+        "**/.ruff_cache": true,
+        "**/logs": true,
+        "**/data/output": true,
+        "**/data/processed": true
+    },
+    // Docker Configuration
+    "docker.defaultRegistryPath": "",
+    // YAML Configuration
+    "yaml.schemas": {
+        "https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json": [
+            "docker-compose*.yml",
+            "docker-compose*.yaml"
+        ]
+    },
+    // JSON Configuration
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "*.json"
+            ],
+            "url": "http://json.schemastore.org/package"
+        }
+    ],
+    // Terminal Configuration
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.integrated.env.osx": {
+        "PYTHONPATH": "${workspaceFolder}/src"
+    },
+    // Poetry Configuration
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.terminal.executeInFileDir": false,
+    "python.terminal.launchArgs": [],
+    "python.venvPath": ".venv",
+    "python.venvFolders": [
+        ".venv"
+    ],
+    // Testing Configuration
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    // IntelliSense Configuration
+    "python.analysis.completeFunctionParens": true,
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.useLibraryCodeForTypes": true,
+    "python.analysis.stubPath": "./typings",
+    "python.analysis.logLevel": "Information",
+    "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.callArgumentNames": "partial",
+    "python.analysis.inlayHints.pytestParameters": true,
+    // Git Configuration
+    "git.ignoreLimitWarning": true,
+    "git.autofetch": true,
+    // Ruff Configuration (matches pre-commit exactly)
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.format.enable": true,
+    "ruff.organizeImports": true,
+    "ruff.fixAll": true,
+    "ruff.showSyntaxErrors": true,
+    "ruff.lint.args": ["--fix", "--unsafe-fixes"],
+    "ruff.importStrategy": "fromEnvironment",
+    "ruff.interpreter": ["./.venv/bin/python"],
+    // TOML Configuration
+    "evenBetterToml.formatter.alignEntries": true,
+    "evenBetterToml.formatter.alignComments": true,
+    "evenBetterToml.formatter.compactArrays": false,
+    // Workspace specific settings
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#2D3748",
+        "titleBar.activeForeground": "#FFFFFF",
+        "statusBar.background": "#2D3748",
+        "statusBar.foreground": "#FFFFFF"
+    },
+    // Auto-save configuration
+    "files.autoSave": "onFocusChange",
+    "files.autoSaveDelay": 1000
+}

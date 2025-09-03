@@ -1,0 +1,256 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Install Dependencies",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "install-dev"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Start Infrastructure",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "start"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Stop Infrastructure",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "stop"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run API Server",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "run-api"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m",
+                "pytest",
+                "tests/",
+                "-v"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$python"
+            ]
+        },
+        {
+            "label": "Format Code (Ruff)",
+            "type": "shell",
+            "command": "ruff",
+            "args": [
+                "format",
+                "src/",
+                "tests/"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Lint Code (Ruff)",
+            "type": "shell",
+            "command": "ruff",
+            "args": [
+                "check",
+                "src/",
+                "tests/"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                {
+                    "owner": "ruff",
+                    "fileLocation": "absolute",
+                    "pattern": {
+                        "regexp": "^(.+):(\\d+):(\\d+):\\s+(\\w+\\d+)\\s+(.+)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "code": 4,
+                        "message": 5
+                    }
+                }
+            ]
+        },
+        {
+            "label": "Fix Code (Ruff)",
+            "type": "shell",
+            "command": "ruff",
+            "args": [
+                "check",
+                "--fix",
+                "src/",
+                "tests/"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Type Check (MyPy)",
+            "type": "shell",
+            "command": "mypy",
+            "args": [
+                "src/"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$mypy"
+            ]
+        },
+        {
+            "label": "Test Pipeline",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "test-pipeline"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Check Service Status",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "status"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "View Logs",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "logs"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean Environment",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Full Development Setup",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "dev-setup"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

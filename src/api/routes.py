@@ -80,15 +80,7 @@ async def ingest_lineage_events(
         user=current_user,
     )
 
-    # Validate namespace access with authentication
-    # await validate_namespace_access(lineage_data.namespace, current_user)
-
-    # Check event quota
-    # if not namespace_service.check_event_quota(lineage_data.namespace, len(lineage_data.events)):
-    #     raise HTTPException(
-    #         status_code=429,
-    #         detail=f"Event quota exceeded for namespace '{lineage_data.namespace}'",
-    #     )
+    # TODO: Implement namespace access validation and event quota checking
 
     # Process events
     publisher = get_kafka_publisher()
@@ -116,7 +108,7 @@ async def ingest_lineage_events(
                 rejected += 1
                 errors.append(f"Event {i}: Failed to publish to Kafka")
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             rejected += 1
             errors.append(f"Event {i}: {e!s}")
 
@@ -151,8 +143,7 @@ async def ingest_telemetry_data(
         user=current_user,
     )
 
-    # Validate namespace access with authentication
-    # await validate_namespace_access(telemetry_request.namespace, current_user)
+    # TODO: Implement namespace access validation
 
     publisher = get_kafka_publisher()
 
@@ -184,7 +175,7 @@ async def ingest_telemetry_data(
                 traces_rejected += 1
                 errors.append(f"Trace {i}: Failed to publish to Kafka")
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             traces_rejected += 1
             errors.append(f"Trace {i}: {e!s}")
 
@@ -217,7 +208,7 @@ async def ingest_telemetry_data(
                 metrics_rejected += 1
                 errors.append(f"Metric {i}: Failed to publish to Kafka")
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             metrics_rejected += 1
             errors.append(f"Metric {i}: {e!s}")
 
@@ -262,15 +253,16 @@ async def create_namespace(
 
     try:
         config = namespace_service.create_namespace(request)
-        logger.info("Successfully created namespace", namespace=request.name)
-        return config
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.exception(
             "Failed to create namespace", namespace=request.name, error=str(e)
         )
-        raise HTTPException(status_code=500, detail="Failed to create namespace")
+        raise HTTPException(status_code=500, detail="Failed to create namespace") from e
+    else:
+        logger.info("Successfully created namespace", namespace=request.name)
+        return config
 
 
 @router.get("/namespaces", response_model=NamespaceListResponse)

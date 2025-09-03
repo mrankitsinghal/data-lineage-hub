@@ -1,0 +1,153 @@
+{
+  "FastAPI Route": {
+    "prefix": "fastapi-route",
+    "body": [
+      "@router.${1:get}(\"/${2:endpoint}\")",
+      "async def ${3:function_name}(${4:params}) -> ${5:ResponseModel}:",
+      "    \"\"\"${6:Description}.\"\"\"",
+      "    logger = get_logger(__name__)",
+      "    logger.info(\"${7:Processing request}\")",
+      "    ",
+      "    try:",
+      "        ${8:# Implementation}",
+      "        return ${9:response}",
+      "    except Exception as e:",
+      "        logger.error(f\"Error: {e}\")",
+      "        raise HTTPException(status_code=500, detail=str(e))"
+    ],
+    "description": "FastAPI route template"
+  },
+  "Pydantic Model": {
+    "prefix": "pydantic-model",
+    "body": [
+      "class ${1:ModelName}(BaseModel):",
+      "    \"\"\"${2:Model description}.\"\"\"",
+      "    ",
+      "    ${3:field_name}: ${4:str}",
+      "    ${5:optional_field}: Optional[${6:str}] = None",
+      "    ",
+      "    class Config:",
+      "        \"\"\"Pydantic configuration.\"\"\"",
+      "        json_encoders = {",
+      "            datetime: lambda v: v.isoformat()",
+      "        }"
+    ],
+    "description": "Pydantic model template"
+  },
+  "OpenLineage Event": {
+    "prefix": "openlineage-event",
+    "body": [
+      "def create_${1:event_type}_event(",
+      "    job_name: str,",
+      "    run_id: str,",
+      "    inputs: List[Dataset] = None,",
+      "    outputs: List[Dataset] = None",
+      ") -> RunEvent:",
+      "    \"\"\"Create ${2:event description}.\"\"\"",
+      "    return RunEvent(",
+      "        eventType=RunState.${3:START},",
+      "        eventTime=datetime.now(timezone.utc).isoformat(),",
+      "        run=Run(runId=run_id),",
+      "        job=Job(",
+      "            namespace=settings.openlineage_namespace,",
+      "            name=job_name",
+      "        ),",
+      "        inputs=inputs or [],",
+      "        outputs=outputs or [],",
+      "        producer=settings.openlineage_producer",
+      "    )"
+    ],
+    "description": "OpenLineage event template"
+  },
+  "Structured Logger": {
+    "prefix": "struct-logger",
+    "body": [
+      "logger = get_logger(__name__)",
+      "logger.${1:info}(",
+      "    \"${2:Message}\",",
+      "    ${3:key}=\"${4:value}\",",
+      "    extra={",
+      "        \"${5:context_key}\": \"${6:context_value}\"",
+      "    }",
+      ")"
+    ],
+    "description": "Structured logging template"
+  },
+  "Kafka Consumer": {
+    "prefix": "kafka-consumer",
+    "body": [
+      "async def ${1:consumer_function}():",
+      "    \"\"\"${2:Consumer description}.\"\"\"",
+      "    logger = get_logger(__name__)",
+      "    consumer = get_kafka_consumer(\"${3:topic_name}\")",
+      "    ",
+      "    try:",
+      "        async for message in consumer:",
+      "            try:",
+      "                data = json.loads(message.value.decode('utf-8'))",
+      "                logger.info(\"Processing message\", message_key=message.key)",
+      "                ",
+      "                ${4:# Process message}",
+      "                ",
+      "            except Exception as e:",
+      "                logger.error(f\"Error processing message: {e}\")",
+      "                continue",
+      "    except Exception as e:",
+      "        logger.error(f\"Consumer error: {e}\")",
+      "    finally:",
+      "        await consumer.stop()"
+    ],
+    "description": "Kafka consumer template"
+  },
+  "Pipeline Stage": {
+    "prefix": "pipeline-stage",
+    "body": [
+      "class ${1:StageName}(PipelineStage):",
+      "    \"\"\"${2:Stage description}.\"\"\"",
+      "    ",
+      "    def __init__(self, config: Dict[str, Any]):",
+      "        super().__init__(config)",
+      "        self.logger = get_logger(self.__class__.__name__)",
+      "    ",
+      "    async def execute(self, context: PipelineContext) -> PipelineContext:",
+      "        \"\"\"Execute the pipeline stage.\"\"\"",
+      "        self.logger.info(\"Starting ${3:stage_name} stage\")",
+      "        ",
+      "        try:",
+      "            ${4:# Stage implementation}",
+      "            ",
+      "            self.logger.info(\"Completed ${3:stage_name} stage\")",
+      "            return context",
+      "        except Exception as e:",
+      "            self.logger.error(f\"Error in ${3:stage_name} stage: {e}\")",
+      "            raise"
+    ],
+    "description": "Pipeline stage template"
+  },
+  "Test Function": {
+    "prefix": "test-func",
+    "body": [
+      "@pytest.mark.asyncio",
+      "async def test_${1:function_name}():",
+      "    \"\"\"Test ${2:description}.\"\"\"",
+      "    # Arrange",
+      "    ${3:# Setup test data}",
+      "    ",
+      "    # Act",
+      "    ${4:# Execute function}",
+      "    ",
+      "    # Assert",
+      "    ${5:# Verify results}",
+      "    assert ${6:condition}"
+    ],
+    "description": "Async test function template"
+  },
+  "Docker Health Check": {
+    "prefix": "docker-health",
+    "body": [
+      "HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \\\\",
+      "  CMD ${1:curl -f http://localhost:8000/health || exit 1}"
+    ],
+    "description": "Docker healthcheck template"
+  }
+}

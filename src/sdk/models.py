@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field
 class LineageEvent(BaseModel):
     """OpenLineage event model."""
 
-    eventType: str = Field(description="Type of event (START, COMPLETE, FAIL)")
-    eventTime: str = Field(description="ISO 8601 timestamp of the event")
+    eventType: str = Field(description="Type of event (START, COMPLETE, FAIL)")  # noqa: N815
+    eventTime: str = Field(description="ISO 8601 timestamp of the event")  # noqa: N815
     run: dict[str, Any] = Field(description="Run information with runId")
     job: dict[str, Any] = Field(description="Job information with namespace and name")
     producer: str = Field(description="Producer identifier")
@@ -25,8 +25,8 @@ class LineageEvent(BaseModel):
 class TelemetryData(BaseModel):
     """OpenTelemetry data model."""
 
-    traceId: str | None = Field(default=None, description="Trace identifier")
-    spanId: str | None = Field(default=None, description="Span identifier")
+    traceId: str | None = Field(default=None, description="Trace identifier")  # noqa: N815
+    spanId: str | None = Field(default=None, description="Span identifier")  # noqa: N815
     resource: dict[str, Any] = Field(description="Resource attributes")
     attributes: dict[str, Any] | None = Field(
         default=None, description="Span/metric attributes"
@@ -98,7 +98,7 @@ class JobReference(BaseModel):
 class RunReference(BaseModel):
     """Reference to a run in lineage."""
 
-    runId: str = Field(description="Unique run identifier")
+    runId: str = Field(description="Unique run identifier")  # noqa: N815
     facets: dict[str, Any] | None = Field(default=None, description="Run facets")
 
 
@@ -161,12 +161,12 @@ class MetricPoint(BaseModel):
 class SpanData(BaseModel):
     """OpenTelemetry span data."""
 
-    traceId: str = Field(description="Trace identifier")
-    spanId: str = Field(description="Span identifier")
-    parentSpanId: str | None = Field(default=None, description="Parent span identifier")
+    traceId: str = Field(description="Trace identifier")  # noqa: N815
+    spanId: str = Field(description="Span identifier")  # noqa: N815
+    parentSpanId: str | None = Field(default=None, description="Parent span identifier")  # noqa: N815
     name: str = Field(description="Span name")
-    startTime: str = Field(description="Start time in ISO 8601 format")
-    endTime: str = Field(description="End time in ISO 8601 format")
+    startTime: str = Field(description="Start time in ISO 8601 format")  # noqa: N815
+    endTime: str = Field(description="End time in ISO 8601 format")  # noqa: N815
     status: dict[str, Any] = Field(description="Span status")
     attributes: dict[str, Any] | None = Field(
         default=None, description="Span attributes"

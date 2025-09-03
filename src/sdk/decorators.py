@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, TypeVar
 
+import httpx
 import structlog
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -16,6 +17,7 @@ from opentelemetry.sdk.trace import TracerProvider
 
 from .client import LineageHubClient, TelemetryClient
 from .config import get_config
+from .types import create_dataset_specs
 
 
 logger = structlog.get_logger(__name__)
@@ -27,7 +29,7 @@ _otel_initialized = False
 
 def _initialize_otel_if_needed() -> None:
     """Initialize OpenTelemetry if not already done."""
-    global _otel_initialized
+    global _otel_initialized  # noqa: PLW0603
 
     if _otel_initialized:
         return
@@ -112,7 +114,7 @@ def _send_span_to_api(span, namespace: str) -> None:
             # Try to get current event loop
             loop = asyncio.get_running_loop()
             # If we get here, we're in a running loop - schedule as task
-            loop.create_task(_send_telemetry_span())
+            _ = loop.create_task(_send_telemetry_span())  # noqa: RUF006
         except RuntimeError:
             # No running loop, safe to use asyncio.run
             asyncio.run(_send_telemetry_span())
@@ -290,12 +292,6 @@ def telemetry_track(
 
                     try:
                         result = await func(*args, **kwargs)
-                        span.set_status(trace.Status(trace.StatusCode.OK))
-
-                        # Send span data to API after successful completion
-                        _send_span_to_api(span, actual_namespace)
-
-                        return result
                     except Exception as e:
                         span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                         span.record_exception(e)
@@ -304,6 +300,13 @@ def telemetry_track(
                         _send_span_to_api(span, actual_namespace)
 
                         raise
+                    else:
+                        span.set_status(trace.Status(trace.StatusCode.OK))
+
+                        # Send span data to API after successful completion
+                        _send_span_to_api(span, actual_namespace)
+
+                        return result
 
             return async_wrapper
 
@@ -321,12 +324,6 @@ def telemetry_track(
 
                 try:
                     result = func(*args, **kwargs)
-                    span.set_status(trace.Status(trace.StatusCode.OK))
-
-                    # Send span data to API after successful completion
-                    _send_span_to_api(span, actual_namespace)
-
-                    return result
                 except Exception as e:
                     span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                     span.record_exception(e)
@@ -335,6 +332,13 @@ def telemetry_track(
                     _send_span_to_api(span, actual_namespace)
 
                     raise
+                else:
+                    span.set_status(trace.Status(trace.StatusCode.OK))
+
+                    # Send span data to API after successful completion
+                    _send_span_to_api(span, actual_namespace)
+
+                    return result
 
         return sync_wrapper
 
@@ -386,7 +390,7 @@ async def _execute_with_lineage_async(
             asyncio.run(client.send_lineage_events([start_event]))
         else:
             await client.send_lineage_events([start_event])
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.warning("Failed to send START event", error=str(e))
 
     # Send pipeline metrics for START
@@ -396,10 +400,10 @@ async def _execute_with_lineage_async(
             job_name=job_name,
             namespace=namespace,
             run_id=run_id,
-            inputs=inputs,
-            outputs=outputs,
+            _inputs=inputs,
+            _outputs=outputs,
         )
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.warning("Failed to send START metrics", error=str(e))
 
     start_time = time.time()
@@ -407,46 +411,6 @@ async def _execute_with_lineage_async(
     try:
         # Execute the function
         result = await func(*args, **kwargs)
-
-        # Create COMPLETE event
-        complete_event = _create_lineage_event(
-            event_type="COMPLETE",
-            job_name=job_name,
-            namespace=namespace,
-            run_id=run_id,
-            inputs=inputs,
-            outputs=outputs,
-            description=description,
-            tags=tags,
-            duration=time.time() - start_time,
-        )
-
-        # Send COMPLETE event
-        try:
-            if send_async:
-                asyncio.run(client.send_lineage_events([complete_event]))
-            else:
-                await client.send_lineage_events([complete_event])
-        except Exception as e:
-            logger.warning("Failed to send COMPLETE event", error=str(e))
-
-        # Send pipeline metrics for COMPLETE
-        try:
-            duration_ms = (time.time() - start_time) * 1000  # Convert to milliseconds
-            await _send_pipeline_metrics(
-                event_type="COMPLETE",
-                job_name=job_name,
-                namespace=namespace,
-                run_id=run_id,
-                duration_ms=duration_ms,
-                inputs=inputs,
-                outputs=outputs,
-            )
-        except Exception as e:
-            logger.warning("Failed to send COMPLETE metrics", error=str(e))
-
-        return result
-
     except Exception as e:
         # Create FAIL event
         fail_event = _create_lineage_event(
@@ -468,7 +432,7 @@ async def _execute_with_lineage_async(
                 asyncio.run(client.send_lineage_events([fail_event]))
             else:
                 await client.send_lineage_events([fail_event])
-        except Exception as send_error:
+        except httpx.HTTPError as send_error:
             logger.warning("Failed to send FAIL event", error=str(send_error))
 
         # Send pipeline metrics for FAIL
@@ -480,13 +444,52 @@ async def _execute_with_lineage_async(
                 namespace=namespace,
                 run_id=run_id,
                 duration_ms=duration_ms,
-                inputs=inputs,
-                outputs=outputs,
+                _inputs=inputs,
+                _outputs=outputs,
             )
-        except Exception as metrics_error:
+        except httpx.HTTPError as metrics_error:
             logger.warning("Failed to send FAIL metrics", error=str(metrics_error))
 
         raise
+    else:
+        # Create COMPLETE event
+        complete_event = _create_lineage_event(
+            event_type="COMPLETE",
+            job_name=job_name,
+            namespace=namespace,
+            run_id=run_id,
+            inputs=inputs,
+            outputs=outputs,
+            description=description,
+            tags=tags,
+            duration=time.time() - start_time,
+        )
+
+        # Send COMPLETE event
+        try:
+            if send_async:
+                asyncio.run(client.send_lineage_events([complete_event]))
+            else:
+                await client.send_lineage_events([complete_event])
+        except httpx.HTTPError as e:
+            logger.warning("Failed to send COMPLETE event", error=str(e))
+
+        # Send pipeline metrics for COMPLETE
+        try:
+            duration_ms = (time.time() - start_time) * 1000  # Convert to milliseconds
+            await _send_pipeline_metrics(
+                event_type="COMPLETE",
+                job_name=job_name,
+                namespace=namespace,
+                run_id=run_id,
+                duration_ms=duration_ms,
+                _inputs=inputs,
+                _outputs=outputs,
+            )
+        except httpx.HTTPError as e:
+            logger.warning("Failed to send COMPLETE metrics", error=str(e))
+
+        return result
 
 
 def _execute_with_lineage_sync_async(
@@ -530,7 +533,7 @@ def _execute_with_lineage_sync_async(
 
             try:
                 await client.send_lineage_events([start_event])
-            except Exception as e:
+            except httpx.HTTPError as e:
                 logger.warning("Failed to send START event", error=str(e))
 
             # Send pipeline metrics for START
@@ -540,10 +543,10 @@ def _execute_with_lineage_sync_async(
                     job_name=job_name,
                     namespace=namespace,
                     run_id=run_id,
-                    inputs=inputs,
-                    outputs=outputs,
+                    _inputs=inputs,
+                    _outputs=outputs,
                 )
-            except Exception as e:
+            except httpx.HTTPError as e:
                 logger.warning("Failed to send START metrics", error=str(e))
 
             # Execute the actual function
@@ -567,7 +570,7 @@ def _execute_with_lineage_sync_async(
 
                 try:
                     await client.send_lineage_events([complete_event])
-                except Exception as e:
+                except httpx.HTTPError as e:
                     logger.warning("Failed to send COMPLETE event", error=str(e))
 
                 # Send pipeline metrics for COMPLETE
@@ -581,13 +584,13 @@ def _execute_with_lineage_sync_async(
                         namespace=namespace,
                         run_id=run_id,
                         duration_ms=duration_ms,
-                        inputs=inputs,
-                        outputs=outputs,
+                        _inputs=inputs,
+                        _outputs=outputs,
                     )
-                except Exception as e:
+                except httpx.HTTPError as e:
                     logger.warning("Failed to send COMPLETE metrics", error=str(e))
 
-                return result
+                return result  # noqa: TRY300
 
             except Exception as e:
                 # Send FAIL event
@@ -606,7 +609,7 @@ def _execute_with_lineage_sync_async(
 
                 try:
                     await client.send_lineage_events([fail_event])
-                except Exception as send_error:
+                except httpx.HTTPError as send_error:
                     logger.warning("Failed to send FAIL event", error=str(send_error))
 
                 # Send pipeline metrics for FAIL
@@ -620,10 +623,10 @@ def _execute_with_lineage_sync_async(
                         namespace=namespace,
                         run_id=run_id,
                         duration_ms=duration_ms,
-                        inputs=inputs,
-                        outputs=outputs,
+                        _inputs=inputs,
+                        _outputs=outputs,
                     )
-                except Exception as metrics_error:
+                except httpx.HTTPError as metrics_error:
                     logger.warning(
                         "Failed to send FAIL metrics", error=str(metrics_error)
                     )
@@ -639,10 +642,10 @@ def _execute_with_lineage_sync(
     kwargs: dict,
     job_name: str,
     namespace: str,
-    inputs: list[dict[str, Any]] | None,
-    outputs: list[dict[str, Any]] | None,
-    description: str | None,
-    tags: dict[str, str] | None,
+    _inputs: list[dict[str, Any]] | None,
+    _outputs: list[dict[str, Any]] | None,
+    _description: str | None,
+    _tags: dict[str, str] | None,
     run_id: str,
 ) -> Any:
     """Execute sync function with sync lineage tracking."""
@@ -674,8 +677,8 @@ async def _send_pipeline_metrics(
     run_id: str,
     duration_ms: float | None = None,
     record_count: int | None = None,
-    inputs: list[dict[str, Any]] | None = None,
-    outputs: list[dict[str, Any]] | None = None,
+    _inputs: list[dict[str, Any]] | None = None,
+    _outputs: list[dict[str, Any]] | None = None,
 ) -> None:
     """Send pipeline metrics to the telemetry API."""
     try:
@@ -772,7 +775,7 @@ async def _send_pipeline_metrics(
 
         await telemetry_client.close()
 
-    except Exception as e:
+    except httpx.HTTPError as e:
         logger.warning(
             "Failed to send pipeline metrics",
             error=str(e),
@@ -809,9 +812,6 @@ def _create_lineage_event(
     error_message: str | None = None,
 ) -> dict[str, Any]:
     """Create OpenLineage event dictionary with dict-based dataset specifications."""
-    from datetime import datetime
-
-    from .types import create_dataset_specs
 
     event = {
         "eventType": event_type,
@@ -833,8 +833,8 @@ def _create_lineage_event(
         try:
             input_specs = create_dataset_specs(inputs)
             event["inputs"] = [spec.to_openlineage_dataset() for spec in input_specs]
-        except Exception as e:
-            logger.warning(f"Failed to process input specifications: {e}")
+        except (ValueError, TypeError) as e:
+            logger.warning("Failed to process input specifications: %s", e)
             # Fallback to simple format
             event["inputs"] = [
                 {"namespace": "unknown", "name": str(inp)} for inp in inputs
@@ -845,8 +845,8 @@ def _create_lineage_event(
         try:
             output_specs = create_dataset_specs(outputs)
             event["outputs"] = [spec.to_openlineage_dataset() for spec in output_specs]
-        except Exception as e:
-            logger.warning(f"Failed to process output specifications: {e}")
+        except (ValueError, TypeError) as e:
+            logger.warning("Failed to process output specifications: %s", e)
             # Fallback to simple format
             event["outputs"] = [
                 {"namespace": "unknown", "name": str(out)} for out in outputs

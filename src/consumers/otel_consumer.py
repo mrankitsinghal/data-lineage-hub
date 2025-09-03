@@ -3,7 +3,7 @@
 import json
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -100,7 +100,7 @@ class OTelConsumer:
 
             # Extract span fields for ClickHouse
             span_record = {
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(UTC),
                 "trace_id": span_data.get("traceId", ""),
                 "span_id": span_data.get("spanId", ""),
                 "parent_span_id": span_data.get("parentSpanId", ""),
@@ -119,18 +119,16 @@ class OTelConsumer:
 
             # Extract events if present
             if "logs" in span_data:
-                events = []
-                for log in span_data["logs"]:
-                    events.append(
-                        (
-                            datetime.fromtimestamp(
-                                log.get("timestamp", 0) / 1000000
-                            ),  # microseconds to seconds
-                            log.get("fields", {}).get("event", "log"),
-                            log.get("fields", {}),
-                        )
+                span_record["events"] = [
+                    (
+                        datetime.fromtimestamp(
+                            log.get("timestamp", 0) / 1000000, tz=UTC
+                        ),  # microseconds to seconds
+                        log.get("fields", {}).get("event", "log"),
+                        log.get("fields", {}),
                     )
-                span_record["events"] = events
+                    for log in span_data["logs"]
+                ]
 
             self.span_batch.append(span_record)
             logger.debug(
@@ -151,7 +149,7 @@ class OTelConsumer:
 
             # Extract metric fields for ClickHouse
             metric_record = {
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(UTC),
                 "metric_name": metric_data.get("name", "unknown"),
                 "metric_type": metric_data.get("type", "gauge"),
                 "value": float(metric_data.get("value", 0)),
