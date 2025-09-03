@@ -3,7 +3,7 @@
 import asyncio
 import json
 import sys
-from typing import Dict, Any
+from datetime import UTC
 
 import click
 import structlog
@@ -16,36 +16,39 @@ logger = structlog.get_logger(__name__)
 
 
 @click.group()
-@click.option('--endpoint', envvar='LINEAGE_HUB_ENDPOINT', help='Hub endpoint URL')
-@click.option('--api-key', envvar='LINEAGE_HUB_API_KEY', help='API key for authentication')
-@click.option('--namespace', envvar='LINEAGE_HUB_NAMESPACE', help='Default namespace')
-@click.option('--debug', is_flag=True, help='Enable debug logging')
+@click.option("--endpoint", envvar="LINEAGE_HUB_ENDPOINT", help="Hub endpoint URL")
+@click.option(
+    "--api-key", envvar="LINEAGE_HUB_API_KEY", help="API key for authentication"
+)
+@click.option("--namespace", envvar="LINEAGE_HUB_NAMESPACE", help="Default namespace")
+@click.option("--debug", is_flag=True, help="Enable debug logging")
 @click.pass_context
 def cli(ctx, endpoint, api_key, namespace, debug):
     """Data Lineage Hub SDK CLI."""
     # Configure SDK
     config_kwargs = {}
     if endpoint:
-        config_kwargs['hub_endpoint'] = endpoint
+        config_kwargs["hub_endpoint"] = endpoint
     if api_key:
-        config_kwargs['api_key'] = api_key
+        config_kwargs["api_key"] = api_key
     if namespace:
-        config_kwargs['namespace'] = namespace
+        config_kwargs["namespace"] = namespace
     if debug:
-        config_kwargs['debug'] = debug
-    
+        config_kwargs["debug"] = debug
+
     if config_kwargs:
         configure(**config_kwargs)
-    
+
     # Store config in context for subcommands
     ctx.ensure_object(dict)
-    ctx.obj['config'] = get_config()
+    ctx.obj["config"] = get_config()
 
 
 @cli.command()
 @click.pass_context
 def health(ctx):
     """Check hub service health."""
+
     async def check_health():
         async with LineageHubClient() as client:
             try:
@@ -61,25 +64,22 @@ def health(ctx):
             except Exception as e:
                 click.echo(f"Health check failed: {e}", err=True)
                 return False
-    
+
     success = asyncio.run(check_health())
     sys.exit(0 if success else 1)
 
 
 @cli.command()
-@click.option('--file', '-f', type=click.File('r'), help='JSON file containing events')
-@click.option('--namespace', '-n', help='Target namespace')
-@click.argument('events', nargs=-1)
+@click.option("--file", "-f", type=click.File("r"), help="JSON file containing events")
+@click.option("--namespace", "-n", help="Target namespace")
+@click.argument("events", nargs=-1)
 @click.pass_context
 def send_events(ctx, file, namespace, events):
     """Send lineage events to the hub."""
     if file:
         try:
             event_data = json.load(file)
-            if isinstance(event_data, dict):
-                event_list = [event_data]
-            else:
-                event_list = event_data
+            event_list = [event_data] if isinstance(event_data, dict) else event_data
         except json.JSONDecodeError as e:
             click.echo(f"Invalid JSON in file: {e}", err=True)
             sys.exit(1)
@@ -90,13 +90,18 @@ def send_events(ctx, file, namespace, events):
             click.echo(f"Invalid JSON in events: {e}", err=True)
             sys.exit(1)
     else:
-        click.echo("No events provided. Use --file or provide JSON events as arguments.", err=True)
+        click.echo(
+            "No events provided. Use --file or provide JSON events as arguments.",
+            err=True,
+        )
         sys.exit(1)
-    
+
     async def send():
         async with LineageHubClient() as client:
             try:
-                response = await client.send_lineage_events(event_list, namespace=namespace)
+                response = await client.send_lineage_events(
+                    event_list, namespace=namespace
+                )
                 click.echo(f"Sent {response.accepted} events successfully")
                 if response.rejected > 0:
                     click.echo(f"Rejected: {response.rejected}")
@@ -106,7 +111,7 @@ def send_events(ctx, file, namespace, events):
             except Exception as e:
                 click.echo(f"Failed to send events: {e}", err=True)
                 return False
-    
+
     success = asyncio.run(send())
     sys.exit(0 if success else 1)
 
@@ -115,6 +120,7 @@ def send_events(ctx, file, namespace, events):
 @click.pass_context
 def list_namespaces(ctx):
     """List accessible namespaces."""
+
     async def list_ns():
         async with LineageHubClient() as client:
             try:
@@ -122,7 +128,7 @@ def list_namespaces(ctx):
                 if not namespaces:
                     click.echo("No accessible namespaces found.")
                     return True
-                
+
                 click.echo(f"Found {len(namespaces)} namespace(s):")
                 for ns in namespaces:
                     click.echo(f"  {ns.name} ({ns.display_name})")
@@ -134,16 +140,17 @@ def list_namespaces(ctx):
             except Exception as e:
                 click.echo(f"Failed to list namespaces: {e}", err=True)
                 return False
-    
+
     success = asyncio.run(list_ns())
     sys.exit(0 if success else 1)
 
 
 @cli.command()
-@click.argument('namespace_name')
+@click.argument("namespace_name")
 @click.pass_context
 def get_namespace(ctx, namespace_name):
     """Get detailed namespace information."""
+
     async def get_ns():
         async with LineageHubClient() as client:
             try:
@@ -165,7 +172,7 @@ def get_namespace(ctx, namespace_name):
             except Exception as e:
                 click.echo(f"Failed to get namespace: {e}", err=True)
                 return False
-    
+
     success = asyncio.run(get_ns())
     sys.exit(0 if success else 1)
 
@@ -174,8 +181,8 @@ def get_namespace(ctx, namespace_name):
 @click.pass_context
 def config(ctx):
     """Show current configuration."""
-    config = ctx.obj['config']
-    
+    config = ctx.obj["config"]
+
     click.echo("Current SDK Configuration:")
     click.echo(f"  Hub Endpoint: {config.hub_endpoint}")
     click.echo(f"  API Key: {'***' if config.api_key else 'Not set'}")
@@ -189,48 +196,50 @@ def config(ctx):
 
 
 @cli.command()
-@click.option('--job-name', required=True, help='Name of the job')
-@click.option('--namespace', help='Job namespace')
-@click.option('--run-id', help='Custom run ID (auto-generated if not provided)')
-@click.option('--input', '-i', multiple=True, help='Input dataset paths')
-@click.option('--output', '-o', multiple=True, help='Output dataset paths')
-@click.option('--description', help='Job description')
-@click.option('--tag', multiple=True, help='Tags in key=value format')
+@click.option("--job-name", required=True, help="Name of the job")
+@click.option("--namespace", help="Job namespace")
+@click.option("--run-id", help="Custom run ID (auto-generated if not provided)")
+@click.option("--input", "-i", multiple=True, help="Input dataset paths")
+@click.option("--output", "-o", multiple=True, help="Output dataset paths")
+@click.option("--description", help="Job description")
+@click.option("--tag", multiple=True, help="Tags in key=value format")
 @click.pass_context
-def create_job_events(ctx, job_name, namespace, run_id, input, output, description, tag):
+def create_job_events(
+    ctx, job_name, namespace, run_id, input, output, description, tag
+):
     """Create START and COMPLETE events for a job."""
     import uuid
-    from datetime import datetime, timezone
-    
+    from datetime import datetime
+
     actual_run_id = run_id or str(uuid.uuid4())
-    actual_namespace = namespace or ctx.obj['config'].namespace
-    
+    actual_namespace = namespace or ctx.obj["config"].namespace
+
     # Parse tags
     tags = {}
     for tag_str in tag:
-        if '=' not in tag_str:
-            click.echo(f"Invalid tag format: {tag_str}. Use key=value format.", err=True)
+        if "=" not in tag_str:
+            click.echo(
+                f"Invalid tag format: {tag_str}. Use key=value format.", err=True
+            )
             sys.exit(1)
-        key, value = tag_str.split('=', 1)
+        key, value = tag_str.split("=", 1)
         tags[key] = value
-    
+
     # Create START event
     start_event = {
         "eventType": "START",
-        "eventTime": datetime.now(timezone.utc).isoformat(),
+        "eventTime": datetime.now(UTC).isoformat(),
         "run": {"runId": actual_run_id},
         "job": {"namespace": actual_namespace, "name": job_name},
         "producer": "data-lineage-hub-sdk-cli",
     }
-    
+
     if description:
         start_event["job"]["description"] = description
-    
+
     if input:
-        start_event["inputs"] = [
-            {"namespace": "file", "name": path} for path in input
-        ]
-    
+        start_event["inputs"] = [{"namespace": "file", "name": path} for path in input]
+
     if tags:
         start_event["run"]["facets"] = {
             "tags": {
@@ -239,23 +248,25 @@ def create_job_events(ctx, job_name, namespace, run_id, input, output, descripti
                 "tags": tags,
             }
         }
-    
+
     # Create COMPLETE event
     complete_event = start_event.copy()
     complete_event["eventType"] = "COMPLETE"
-    complete_event["eventTime"] = datetime.now(timezone.utc).isoformat()
-    
+    complete_event["eventTime"] = datetime.now(UTC).isoformat()
+
     if output:
         complete_event["outputs"] = [
             {"namespace": "file", "name": path} for path in output
         ]
-    
+
     events = [start_event, complete_event]
-    
+
     async def send():
         async with LineageHubClient() as client:
             try:
-                response = await client.send_lineage_events(events, namespace=actual_namespace)
+                response = await client.send_lineage_events(
+                    events, namespace=actual_namespace
+                )
                 click.echo(f"Created job events for run ID: {actual_run_id}")
                 click.echo(f"Sent {response.accepted} events successfully")
                 if response.rejected > 0:
@@ -266,7 +277,7 @@ def create_job_events(ctx, job_name, namespace, run_id, input, output, descripti
             except Exception as e:
                 click.echo(f"Failed to send events: {e}", err=True)
                 return False
-    
+
     success = asyncio.run(send())
     sys.exit(0 if success else 1)
 

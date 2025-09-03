@@ -1,9 +1,7 @@
 """Configuration management for Data Lineage Hub SDK."""
 
-import os
-from typing import Optional
-
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class LineageHubConfig(BaseSettings):
@@ -12,73 +10,58 @@ class LineageHubConfig(BaseSettings):
     # Connection settings
     hub_endpoint: str = Field(
         default="http://localhost:8000",
-        description="Data Lineage Hub service endpoint URL"
+        description="Data Lineage Hub service endpoint URL",
     )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="API key for authentication (required in production)"
+    api_key: str | None = Field(
+        default=None, description="API key for authentication (required in production)"
     )
     namespace: str = Field(
-        default="default",
-        description="Namespace for multi-tenant isolation"
+        default="default", description="Namespace for multi-tenant isolation"
     )
 
-    # HTTP client settings  
-    timeout: int = Field(
-        default=30,
-        description="HTTP request timeout in seconds"
-    )
+    # HTTP client settings
+    timeout: int = Field(default=30, description="HTTP request timeout in seconds")
     retry_attempts: int = Field(
-        default=3,
-        description="Number of retry attempts for failed requests"
+        default=3, description="Number of retry attempts for failed requests"
     )
     retry_delay: float = Field(
-        default=1.0,
-        description="Initial delay between retries in seconds"
+        default=1.0, description="Initial delay between retries in seconds"
     )
 
     # Feature flags
     enable_telemetry: bool = Field(
-        default=True,
-        description="Enable OpenTelemetry instrumentation"
+        default=True, description="Enable OpenTelemetry instrumentation"
     )
     enable_lineage: bool = Field(
-        default=True,
-        description="Enable OpenLineage event tracking"
+        default=True, description="Enable OpenLineage event tracking"
     )
     auto_instrument: bool = Field(
-        default=True,
-        description="Automatically instrument common libraries"
+        default=True, description="Automatically instrument common libraries"
     )
 
     # Batching settings
     batch_size: int = Field(
-        default=100,
-        description="Maximum number of events to batch together"
+        default=100, description="Maximum number of events to batch together"
     )
     flush_interval: float = Field(
-        default=5.0,
-        description="Interval to flush batched events in seconds"
+        default=5.0, description="Interval to flush batched events in seconds"
     )
 
     # Development settings
-    debug: bool = Field(
-        default=False,
-        description="Enable debug logging and features"
-    )
+    debug: bool = Field(default=False, description="Enable debug logging and features")
     dry_run: bool = Field(
-        default=False,
-        description="Enable dry-run mode (log events instead of sending)"
+        default=False, description="Enable dry-run mode (log events instead of sending)"
     )
 
     class Config:
         """Pydantic configuration."""
+
         env_prefix = "LINEAGE_HUB_"
         case_sensitive = False
 
 
 # Global configuration instance
-_config: Optional[LineageHubConfig] = None
+_config: LineageHubConfig | None = None
 
 
 def get_config() -> LineageHubConfig:
@@ -90,19 +73,19 @@ def get_config() -> LineageHubConfig:
 
 
 def configure(
-    hub_endpoint: Optional[str] = None,
-    api_key: Optional[str] = None,
-    namespace: Optional[str] = None,
-    timeout: Optional[int] = None,
-    retry_attempts: Optional[int] = None,
-    enable_telemetry: Optional[bool] = None,
-    enable_lineage: Optional[bool] = None,
-    debug: Optional[bool] = None,
-    **kwargs
+    hub_endpoint: str | None = None,
+    api_key: str | None = None,
+    namespace: str | None = None,
+    timeout: int | None = None,
+    retry_attempts: int | None = None,
+    enable_telemetry: bool | None = None,
+    enable_lineage: bool | None = None,
+    debug: bool | None = None,
+    **kwargs,
 ) -> LineageHubConfig:
     """
     Configure the Data Lineage Hub SDK globally.
-    
+
     Args:
         hub_endpoint: Data Lineage Hub service endpoint URL
         api_key: API key for authentication
@@ -113,12 +96,12 @@ def configure(
         enable_lineage: Enable OpenLineage event tracking
         debug: Enable debug logging and features
         **kwargs: Additional configuration options
-        
+
     Returns:
         Configured LineageHubConfig instance
     """
     global _config
-    
+
     # Build configuration dict from parameters
     config_dict = {}
     if hub_endpoint is not None:
@@ -137,10 +120,10 @@ def configure(
         config_dict["enable_lineage"] = enable_lineage
     if debug is not None:
         config_dict["debug"] = debug
-    
+
     # Add any additional kwargs
     config_dict.update(kwargs)
-    
+
     # Create new config with merged settings
     if _config is None:
         _config = LineageHubConfig(**config_dict)
@@ -149,7 +132,7 @@ def configure(
         for key, value in config_dict.items():
             if hasattr(_config, key):
                 setattr(_config, key, value)
-    
+
     return _config
 
 

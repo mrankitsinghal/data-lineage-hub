@@ -30,6 +30,7 @@ docker-compose exec kafka kafka-topics --create --bootstrap-server localhost:909
 docker-compose exec kafka kafka-topics --create --bootstrap-server localhost:9092 --topic otel-spans --partitions 3 --replication-factor 1 --if-not-exists
 docker-compose exec kafka kafka-topics --create --bootstrap-server localhost:9092 --topic otel-metrics --partitions 3 --replication-factor 1 --if-not-exists
 
+
 # Wait for Marquez
 echo "   Waiting for Marquez..."
 while ! curl -s http://localhost:5000/api/v1/namespaces > /dev/null; do
@@ -49,7 +50,7 @@ echo "   • API Server: http://localhost:8000"
 echo "   • API Docs: http://localhost:8000/docs"
 echo "   • Marquez UI: http://localhost:3000"
 echo "   • Grafana: http://localhost:3001 (admin/admin)"
-echo "   • Jaeger: http://localhost:16686"
+
 echo ""
 echo "🚀 You can now start the API server with:"
 echo "   python -m src.main"
@@ -58,7 +59,7 @@ echo "🔄 And start the consumers with:"
 echo "   python -m src.consumers.lineage_consumer"
 echo "   python -m src.consumers.otel_consumer"
 echo ""
-echo "📋 To run a sample pipeline:"
-echo "   curl -X POST http://localhost:8000/api/v1/pipeline/run \\"
+echo "📋 To test central lineage ingestion:"
+echo "   curl -X POST http://localhost:8000/api/v1/lineage/ingest \\"
 echo "     -H 'Content-Type: application/json' \\"
-echo "     -d '{\"pipeline_name\": \"sample-etl\", \"input_path\": \"data/sample_input.csv\", \"output_path\": \"data/output.csv\"}'"
+echo "     -d '{\\"namespace\\": \\"demo-team\\", \\"events\\": [{\\"eventType\\": \\"START\\", \\"job\\": {\\"name\\": \\"test_job\\", \\"namespace\\": \\"demo-team\\"}}]}'"

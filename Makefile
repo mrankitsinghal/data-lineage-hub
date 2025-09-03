@@ -62,6 +62,9 @@ run-api:  ## Run the FastAPI server
 run-lineage-consumer:  ## Run the OpenLineage consumer
 	poetry run python -m src.consumers.lineage_consumer
 
+run-otel-consumer:  ## Run the OpenTelemetry consumer
+	poetry run python -m src.consumers.otel_consumer
+
 format:  ## Format code with Ruff
 	$(MAKE) poetry-check
 	poetry run ruff format src/ tests/
@@ -111,10 +114,10 @@ venv-recreate:  ## Recreate virtual environment from scratch
 	$(MAKE) install-dev
 	@echo "🔄 Virtual environment recreated!"
 
-test-pipeline:  ## Test the sample pipeline
-	curl -X POST http://localhost:8000/api/v1/pipeline/run \
+test-lineage:  ## Test the central lineage ingestion API
+	curl -X POST http://localhost:8000/api/v1/lineage/ingest \
 		-H 'Content-Type: application/json' \
-		-d '{"pipeline_name": "sample-etl", "input_path": "data/sample_input.csv", "output_path": "data/output.csv"}'
+		-d '{"namespace": "demo-team", "events": [{"eventType": "START", "job": {"name": "test_job", "namespace": "demo-team"}}]}'
 
 status:  ## Check service status
 	@echo "=== Docker Services ==="

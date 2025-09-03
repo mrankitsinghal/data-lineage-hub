@@ -54,7 +54,10 @@ class KafkaEventPublisher:
             raise
 
     def publish_openlineage_event(
-        self, event: dict[str, Any], run_id: str | None = None, namespace: str | None = None
+        self,
+        event: dict[str, Any],
+        run_id: str | None = None,
+        namespace: str | None = None,
     ) -> bool:
         """Publish OpenLineage event to Kafka with namespace support."""
         try:
@@ -65,7 +68,7 @@ class KafkaEventPublisher:
 
             # Serialize the event data
             value = json.dumps(event).encode("utf-8")
-            
+
             # Create namespace-aware message key: namespace:run_id or namespace:random
             if namespace:
                 key_parts = [namespace]
@@ -79,8 +82,8 @@ class KafkaEventPublisher:
             headers = {}
             if namespace:
                 headers["namespace"] = namespace.encode("utf-8")
-                headers["event_type"] = "openlineage".encode("utf-8")
-            
+                headers["event_type"] = b"openlineage"
+
             # Produce message asynchronously
             self.producer.produce(
                 topic=settings.kafka_openlineage_topic,
@@ -102,15 +105,18 @@ class KafkaEventPublisher:
             return True
         except (KafkaError, KafkaException) as e:
             logger.exception(
-                "Failed to publish OpenLineage event", 
-                error=str(e), 
-                run_id=run_id, 
-                namespace=namespace
+                "Failed to publish OpenLineage event",
+                error=str(e),
+                run_id=run_id,
+                namespace=namespace,
             )
             return False
 
     def publish_otel_span(
-        self, span_data: dict[str, Any], trace_id: str | None = None, namespace: str | None = None
+        self,
+        span_data: dict[str, Any],
+        trace_id: str | None = None,
+        namespace: str | None = None,
     ) -> bool:
         """Publish OpenTelemetry span to Kafka with namespace support."""
         try:
@@ -125,7 +131,7 @@ class KafkaEventPublisher:
 
             # Serialize the span data
             value = json.dumps(span_data).encode("utf-8")
-            
+
             # Create namespace-aware message key
             if namespace:
                 key_parts = [namespace]
@@ -139,7 +145,7 @@ class KafkaEventPublisher:
             headers = {}
             if namespace:
                 headers["namespace"] = namespace.encode("utf-8")
-                headers["event_type"] = "otel_span".encode("utf-8")
+                headers["event_type"] = b"otel_span"
 
             # Produce message asynchronously
             self.producer.produce(
@@ -162,15 +168,18 @@ class KafkaEventPublisher:
             return True
         except (KafkaError, KafkaException) as e:
             logger.exception(
-                "Failed to publish OTEL span", 
-                error=str(e), 
-                trace_id=trace_id, 
-                namespace=namespace
+                "Failed to publish OTEL span",
+                error=str(e),
+                trace_id=trace_id,
+                namespace=namespace,
             )
             return False
 
     def publish_otel_metric(
-        self, metric_data: dict[str, Any], service_name: str | None = None, namespace: str | None = None
+        self,
+        metric_data: dict[str, Any],
+        service_name: str | None = None,
+        namespace: str | None = None,
     ) -> bool:
         """Publish OpenTelemetry metric to Kafka with namespace support."""
         try:
@@ -181,11 +190,13 @@ class KafkaEventPublisher:
                 if "attributes" not in metric_data["resource"]:
                     metric_data["resource"]["attributes"] = {}
                 if "service.namespace" not in metric_data["resource"]["attributes"]:
-                    metric_data["resource"]["attributes"]["service.namespace"] = namespace
+                    metric_data["resource"]["attributes"]["service.namespace"] = (
+                        namespace
+                    )
 
             # Serialize the metric data
             value = json.dumps(metric_data).encode("utf-8")
-            
+
             # Create namespace-aware message key
             if namespace:
                 key_parts = [namespace]
@@ -199,7 +210,7 @@ class KafkaEventPublisher:
             headers = {}
             if namespace:
                 headers["namespace"] = namespace.encode("utf-8")
-                headers["event_type"] = "otel_metric".encode("utf-8")
+                headers["event_type"] = b"otel_metric"
 
             # Produce message asynchronously
             self.producer.produce(
@@ -222,10 +233,10 @@ class KafkaEventPublisher:
             return True
         except (KafkaError, KafkaException) as e:
             logger.exception(
-                "Failed to publish OTEL metric", 
-                error=str(e), 
-                service=service_name, 
-                namespace=namespace
+                "Failed to publish OTEL metric",
+                error=str(e),
+                service=service_name,
+                namespace=namespace,
             )
             return False
 

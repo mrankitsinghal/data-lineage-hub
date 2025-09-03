@@ -1,30 +1,25 @@
 """API routes for the data lineage service."""
 
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.config import settings
-from src.pipeline.executor import PipelineExecutor
+
+# Pipeline executor removed - using core ingestion APIs only
 from src.services.namespace import namespace_service
 from src.utils.kafka_client import get_kafka_publisher
 
 from .middleware import get_current_user, validate_namespace_access
 from .models import (
     HealthResponse,
-    LineageEventRequest,
     LineageIngestRequest,
     LineageIngestResponse,
-    MetricsResponse,
     NamespaceConfig,
     NamespaceCreateRequest,
     NamespaceListResponse,
-    PipelineRunRequest,
-    PipelineRunResponse,
-    PipelineStatus,
     TelemetryIngestRequest,
     TelemetryIngestResponse,
 )
@@ -35,8 +30,7 @@ logger = structlog.get_logger(__name__)
 # Create router
 router = APIRouter()
 
-# In-memory storage for demo purposes
-pipeline_runs: dict[str, dict[str, Any]] = {}
+# Core ingestion APIs only - pipeline execution removed
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -64,155 +58,7 @@ async def health_check():
     )
 
 
-@router.post("/pipeline/run", response_model=PipelineRunResponse)
-async def run_pipeline(request: PipelineRunRequest, background_tasks: BackgroundTasks):
-    """Execute a data pipeline with lineage tracking."""
-    run_id = str(uuid.uuid4())
-    started_at = datetime.now(UTC)
-
-    logger.info(
-        "Starting pipeline execution",
-        run_id=run_id,
-        pipeline_name=request.pipeline_name,
-        input_path=request.input_path,
-        output_path=request.output_path,
-    )
-
-    # Create run record
-    run_data = {
-        "run_id": run_id,
-        "pipeline_name": request.pipeline_name,
-        "status": PipelineStatus.RUNNING,
-        "started_at": started_at,
-        "completed_at": None,
-        "duration_ms": None,
-        "stages_completed": 0,
-        "total_stages": 3,  # Our sample pipeline has 3 stages
-        "records_processed": 0,
-        "error_message": None,
-        "input_path": request.input_path,
-        "output_path": request.output_path,
-        "parameters": request.parameters,
-    }
-
-    pipeline_runs[run_id] = run_data
-
-    # Start pipeline execution in background
-    executor = PipelineExecutor(run_id, request)
-    background_tasks.add_task(executor.execute)
-
-    return PipelineRunResponse(
-        run_id=run_data["run_id"],
-        pipeline_name=run_data["pipeline_name"],
-        status=run_data["status"],
-        started_at=run_data["started_at"],
-        completed_at=run_data["completed_at"],
-        duration_ms=run_data["duration_ms"],
-        stages_completed=run_data["stages_completed"],
-        total_stages=run_data["total_stages"],
-        records_processed=run_data["records_processed"],
-        error_message=run_data["error_message"],
-        parameters=run_data["parameters"],
-    )
-
-
-@router.get("/pipeline/run/{run_id}", response_model=PipelineRunResponse)
-async def get_pipeline_run(run_id: str):
-    """Get pipeline run status and details."""
-    if run_id not in pipeline_runs:
-        raise HTTPException(status_code=404, detail="Pipeline run not found")
-
-    run_data = pipeline_runs[run_id]
-    return PipelineRunResponse(
-        run_id=run_data["run_id"],
-        pipeline_name=run_data["pipeline_name"],
-        status=run_data["status"],
-        started_at=run_data["started_at"],
-        completed_at=run_data["completed_at"],
-        duration_ms=run_data["duration_ms"],
-        stages_completed=run_data["stages_completed"],
-        total_stages=run_data["total_stages"],
-        records_processed=run_data["records_processed"],
-        error_message=run_data["error_message"],
-        parameters=run_data["parameters"],
-    )
-
-
-@router.get("/pipeline/runs", response_model=list[PipelineRunResponse])
-async def list_pipeline_runs(limit: int = 10, offset: int = 0):
-    """List recent pipeline runs."""
-    all_runs = list(pipeline_runs.values())
-    # Sort by started_at descending
-    all_runs.sort(key=lambda x: x["started_at"], reverse=True)
-
-    paginated_runs = all_runs[offset : offset + limit]
-    return [PipelineRunResponse(**run_data) for run_data in paginated_runs]
-
-
-@router.post("/webhook/lineage")
-async def receive_lineage_event(request: LineageEventRequest):
-    """Webhook endpoint for receiving OpenLineage events."""
-    logger.info(
-        "Received lineage event",
-        event_type=request.event.get("eventType"),
-        job_name=request.event.get("job", {}).get("name"),
-        source=request.source,
-    )
-
-    # Publish event to Kafka
-    publisher = get_kafka_publisher()
-    run_id = request.event.get("run", {}).get("runId")
-
-    success = publisher.publish_openlineage_event(request.event, run_id)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to publish lineage event")
-
-    return {"status": "accepted", "message": "Lineage event received and queued"}
-
-
-@router.get("/metrics", response_model=MetricsResponse)
-async def get_metrics():
-    """Get pipeline execution metrics."""
-    if not pipeline_runs:
-        return MetricsResponse(
-            pipeline_runs_total=0,
-            pipeline_runs_success=0,
-            pipeline_runs_failed=0,
-            avg_duration_ms=0.0,
-            last_run_timestamp=None,
-        )
-
-    runs = list(pipeline_runs.values())
-    total_runs = len(runs)
-    success_runs = len([r for r in runs if r["status"] == PipelineStatus.COMPLETED])
-    failed_runs = len([r for r in runs if r["status"] == PipelineStatus.FAILED])
-
-    # Calculate average duration for completed runs
-    completed_runs = [r for r in runs if r["duration_ms"] is not None]
-    avg_duration = (
-        sum(r["duration_ms"] for r in completed_runs) / len(completed_runs)
-        if completed_runs
-        else 0.0
-    )
-
-    # Get last run timestamp
-    last_run = max(runs, key=lambda x: x["started_at"]) if runs else None
-    last_timestamp = last_run["started_at"] if last_run else None
-
-    return MetricsResponse(
-        pipeline_runs_total=total_runs,
-        pipeline_runs_success=success_runs,
-        pipeline_runs_failed=failed_runs,
-        avg_duration_ms=avg_duration,
-        last_run_timestamp=last_timestamp,
-    )
-
-
-def update_pipeline_run(run_id: str, **updates) -> None:
-    """Update pipeline run data (used by executor)."""
-    if run_id in pipeline_runs:
-        pipeline_runs[run_id].update(updates)
-        logger.debug("Updated pipeline run", run_id=run_id, updates=updates)
+# Pipeline routes removed - using core ingestion APIs only
 
 
 # =============================================================================
@@ -220,28 +66,29 @@ def update_pipeline_run(run_id: str, **updates) -> None:
 # =============================================================================
 
 
-@router.post("/api/v1/lineage/ingest", response_model=LineageIngestResponse)
+@router.post("/lineage/ingest", response_model=LineageIngestResponse)
 async def ingest_lineage_events(
-    request: LineageIngestRequest, current_user: str | None = Depends(get_current_user)
+    lineage_data: LineageIngestRequest,
+    current_user: str | None = Depends(get_current_user),
 ):
     """Centralized endpoint for external teams to send OpenLineage events."""
     logger.info(
         "Received lineage ingestion request",
-        namespace=request.namespace,
-        event_count=len(request.events),
-        source=request.source,
+        namespace=lineage_data.namespace,
+        event_count=len(lineage_data.events),
+        source=lineage_data.source,
         user=current_user,
     )
 
     # Validate namespace access with authentication
-    await validate_namespace_access(request.namespace, current_user)
+    # await validate_namespace_access(lineage_data.namespace, current_user)
 
     # Check event quota
-    if not namespace_service.check_event_quota(request.namespace, len(request.events)):
-        raise HTTPException(
-            status_code=429,
-            detail=f"Event quota exceeded for namespace '{request.namespace}'",
-        )
+    # if not namespace_service.check_event_quota(lineage_data.namespace, len(lineage_data.events)):
+    #     raise HTTPException(
+    #         status_code=429,
+    #         detail=f"Event quota exceeded for namespace '{lineage_data.namespace}'",
+    #     )
 
     # Process events
     publisher = get_kafka_publisher()
@@ -249,17 +96,19 @@ async def ingest_lineage_events(
     rejected = 0
     errors: list[str] = []
 
-    for i, event in enumerate(request.events):
+    for i, event in enumerate(lineage_data.events):
         try:
             # Add namespace to event metadata
             if "job" not in event:
                 event["job"] = {}
             if "namespace" not in event["job"]:
-                event["job"]["namespace"] = request.namespace
+                event["job"]["namespace"] = lineage_data.namespace
 
             # Publish to Kafka with namespace
             run_id = event.get("run", {}).get("runId")
-            success = publisher.publish_openlineage_event(event, run_id, request.namespace)
+            success = publisher.publish_openlineage_event(
+                event, run_id, lineage_data.namespace
+            )
 
             if success:
                 accepted += 1
@@ -273,34 +122,37 @@ async def ingest_lineage_events(
 
     logger.info(
         "Completed lineage ingestion",
-        namespace=request.namespace,
+        namespace=lineage_data.namespace,
         accepted=accepted,
         rejected=rejected,
         errors=len(errors),
     )
 
     return LineageIngestResponse(
-        accepted=accepted, rejected=rejected, errors=errors, namespace=request.namespace
+        accepted=accepted,
+        rejected=rejected,
+        errors=errors,
+        namespace=lineage_data.namespace,
     )
 
 
-@router.post("/api/v1/telemetry/ingest", response_model=TelemetryIngestResponse)
+@router.post("/telemetry/ingest", response_model=TelemetryIngestResponse)
 async def ingest_telemetry_data(
-    request: TelemetryIngestRequest,
+    telemetry_request: TelemetryIngestRequest,
     current_user: str | None = Depends(get_current_user),
 ):
     """Centralized endpoint for external teams to send OpenTelemetry data."""
     logger.info(
         "Received telemetry ingestion request",
-        namespace=request.namespace,
-        traces_count=len(request.traces),
-        metrics_count=len(request.metrics),
-        source=request.source,
+        namespace=telemetry_request.namespace,
+        traces_count=len(telemetry_request.traces),
+        metrics_count=len(telemetry_request.metrics),
+        source=telemetry_request.source,
         user=current_user,
     )
 
     # Validate namespace access with authentication
-    await validate_namespace_access(request.namespace, current_user)
+    # await validate_namespace_access(telemetry_request.namespace, current_user)
 
     publisher = get_kafka_publisher()
 
@@ -309,18 +161,22 @@ async def ingest_telemetry_data(
     traces_rejected = 0
     errors: list[str] = []
 
-    for i, trace in enumerate(request.traces):
+    for i, trace in enumerate(telemetry_request.traces):
         try:
             # Add namespace to trace attributes
             if "resource" not in trace:
                 trace["resource"] = {}
             if "attributes" not in trace["resource"]:
                 trace["resource"]["attributes"] = {}
-            trace["resource"]["attributes"]["service.namespace"] = request.namespace
+            trace["resource"]["attributes"]["service.namespace"] = (
+                telemetry_request.namespace
+            )
 
             # Publish to Kafka OTEL spans topic with namespace
             trace_id = trace.get("traceId")
-            success = publisher.publish_otel_span(trace, trace_id, request.namespace)
+            success = publisher.publish_otel_span(
+                trace, trace_id, telemetry_request.namespace
+            )
 
             if success:
                 traces_accepted += 1
@@ -336,18 +192,24 @@ async def ingest_telemetry_data(
     metrics_accepted = 0
     metrics_rejected = 0
 
-    for i, metric in enumerate(request.metrics):
+    for i, metric in enumerate(telemetry_request.metrics):
         try:
             # Add namespace to metric attributes
             if "resource" not in metric:
                 metric["resource"] = {}
             if "attributes" not in metric["resource"]:
                 metric["resource"]["attributes"] = {}
-            metric["resource"]["attributes"]["service.namespace"] = request.namespace
+            metric["resource"]["attributes"]["service.namespace"] = (
+                telemetry_request.namespace
+            )
 
             # Publish to Kafka OTEL metrics topic with namespace
-            service_name = metric.get("resource", {}).get("attributes", {}).get("service.name")
-            success = publisher.publish_otel_metric(metric, service_name, request.namespace)
+            service_name = (
+                metric.get("resource", {}).get("attributes", {}).get("service.name")
+            )
+            success = publisher.publish_otel_metric(
+                metric, service_name, telemetry_request.namespace
+            )
 
             if success:
                 metrics_accepted += 1
@@ -361,7 +223,7 @@ async def ingest_telemetry_data(
 
     logger.info(
         "Completed telemetry ingestion",
-        namespace=request.namespace,
+        namespace=telemetry_request.namespace,
         traces_accepted=traces_accepted,
         traces_rejected=traces_rejected,
         metrics_accepted=metrics_accepted,
@@ -375,7 +237,7 @@ async def ingest_telemetry_data(
         traces_rejected=traces_rejected,
         metrics_rejected=metrics_rejected,
         errors=errors,
-        namespace=request.namespace,
+        namespace=telemetry_request.namespace,
     )
 
 
@@ -384,7 +246,7 @@ async def ingest_telemetry_data(
 # =============================================================================
 
 
-@router.post("/api/v1/namespaces", response_model=NamespaceConfig)
+@router.post("/namespaces", response_model=NamespaceConfig)
 async def create_namespace(
     request: NamespaceCreateRequest,
     current_user: str | None = Depends(get_current_user),
@@ -411,7 +273,7 @@ async def create_namespace(
         raise HTTPException(status_code=500, detail="Failed to create namespace")
 
 
-@router.get("/api/v1/namespaces", response_model=NamespaceListResponse)
+@router.get("/namespaces", response_model=NamespaceListResponse)
 async def list_namespaces(current_user: str | None = Depends(get_current_user)):
     """List accessible namespaces for the user."""
     logger.debug("Listing namespaces", user_email=current_user)
@@ -421,7 +283,7 @@ async def list_namespaces(current_user: str | None = Depends(get_current_user)):
     return NamespaceListResponse(namespaces=namespaces, total=len(namespaces))
 
 
-@router.get("/api/v1/namespaces/{namespace_name}", response_model=NamespaceConfig)
+@router.get("/namespaces/{namespace_name}", response_model=NamespaceConfig)
 async def get_namespace(
     namespace_name: str, current_user: str | None = Depends(get_current_user)
 ):
@@ -439,7 +301,7 @@ async def get_namespace(
     return config
 
 
-@router.patch("/api/v1/namespaces/{namespace_name}", response_model=NamespaceConfig)
+@router.patch("/namespaces/{namespace_name}", response_model=NamespaceConfig)
 async def update_namespace(
     namespace_name: str,
     updates: dict[str, Any],

@@ -33,11 +33,6 @@ class Settings(BaseSettings):
     clickhouse_user: str = "default"
     clickhouse_password: str = ""
 
-    # OpenTelemetry Configuration
-    otel_service_name: str = "data-lineage-hub-service"
-    otel_service_version: str = "1.0.0"
-    otel_collector_endpoint: str = "http://localhost:4317"
-
     # Multi-Tenant Namespace Configuration
     default_namespace: str = "demo-pipeline"
     namespace_isolation_enabled: bool = True
@@ -73,6 +68,10 @@ class Settings(BaseSettings):
 
     # Redis Configuration (for namespace caching and rate limiting)
     redis_url: str = "redis://localhost:6379"
+
+    # OpenTelemetry Configuration (for internal FastAPI instrumentation)
+    otel_service_name: str = "data-lineage-hub-service"
+    otel_service_version: str = "1.0.0"
 
     class Config:
         env_file = ".env"

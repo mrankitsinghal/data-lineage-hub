@@ -67,58 +67,106 @@ class ClickHouseClient:
             )
             raise
 
-    def insert_spans_batch(self, spans: list[tuple]) -> None:
+    def insert_otel_spans(self, spans: list[dict]) -> bool:
         """
         Insert a batch of OpenTelemetry spans into ClickHouse.
 
         Args:
-            spans: List of span tuples to insert
+            spans: List of span dictionaries to insert
+
+        Returns:
+            True if successful, False otherwise
         """
         if not spans:
-            return
+            return True
 
         try:
+            # Convert dict format to tuple format expected by ClickHouse
+            span_tuples = [
+                (
+                    span["timestamp"],
+                    span["trace_id"],
+                    span["span_id"],
+                    span["parent_span_id"],
+                    span["operation_name"],
+                    span["service_name"],
+                    span["duration_ns"],
+                    span["status_code"],
+                    span["span_kind"],
+                    span["namespace"],
+                    span["attributes"],
+                    span["resource_attributes"],
+                    span["events"],
+                )
+                for span in spans
+            ]
+
             self.client.execute(
                 """
                 INSERT INTO otel.traces
                 (timestamp, trace_id, span_id, parent_span_id, operation_name,
-                 service_name, duration_ns, status_code, span_kind, attributes,
-                 resource_attributes, events)
+                 service_name, duration_ns, status_code, span_kind, namespace,
+                 attributes, resource_attributes, events)
                 VALUES
                 """,
-                spans,
+                span_tuples,
             )
             logger.info("Inserted span batch to ClickHouse", count=len(spans))
+            return True
 
         except Exception as e:
             logger.exception("Failed to insert spans to ClickHouse", error=str(e))
-            raise
+            return False
 
-    def insert_metrics_batch(self, metrics: list[tuple]) -> None:
+    def insert_otel_metrics(self, metrics: list[dict]) -> bool:
         """
         Insert a batch of OpenTelemetry metrics into ClickHouse.
 
         Args:
-            metrics: List of metric tuples to insert
+            metrics: List of metric dictionaries to insert
+
+        Returns:
+            True if successful, False otherwise
         """
         if not metrics:
-            return
+            return True
 
         try:
+            # Convert dict format to tuple format expected by ClickHouse
+            metric_tuples = [
+                (
+                    metric["timestamp"],
+                    metric["metric_name"],
+                    metric["metric_type"],
+                    metric["value"],
+                    metric["unit"],
+                    metric["service_name"],
+                    metric["namespace"],
+                    metric["attributes"],
+                    metric["resource_attributes"],
+                )
+                for metric in metrics
+            ]
+
             self.client.execute(
                 """
                 INSERT INTO otel.metrics
                 (timestamp, metric_name, metric_type, value, unit, service_name,
-                 attributes, resource_attributes)
+                 namespace, attributes, resource_attributes)
                 VALUES
                 """,
-                metrics,
+                metric_tuples,
             )
             logger.info("Inserted metrics batch to ClickHouse", count=len(metrics))
+            return True
 
         except Exception as e:
             logger.exception("Failed to insert metrics to ClickHouse", error=str(e))
-            raise
+            return False
+
+    def close(self) -> None:
+        """Close the ClickHouse connection."""
+        self.disconnect()
 
     def disconnect(self) -> None:
         """Disconnect from ClickHouse."""

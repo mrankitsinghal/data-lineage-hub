@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Data Lineage Hub POC demonstrating data pipeline observability using OpenLineage and Marquez for data lineage tracking, combined with OpenTelemetry and OTEL Collector for distributed tracing and metrics. The system processes data through a 3-stage ETL pipeline (Extract → Transform → Load) while automatically tracking lineage and performance metrics.
+Data Lineage Hub POC demonstrating data pipeline observability using OpenLineage and Marquez for data lineage tracking. The system provides a centralized service architecture where teams can use the SDK to send lineage events to the central hub.
 
 ### Architecture Overview
-- **OpenTelemetry**: Metrics & traces → OTEL Collector → ClickHouse (Grafana dashboards)
-- **OpenLineage**: Lineage events → Kafka → Marquez
-- **Standards-based**: Uses OTLP protocol and OTEL Collector for vendor-agnostic observability
+- **OpenLineage**: Lineage events → Kafka → Marquez (data lineage visualization)
+- **Centralized Service**: Teams use SDK decorators to send events to central hub
+- **Multi-tenant**: Namespace-based isolation for different teams
 
 ## Development Environment
 
@@ -27,11 +27,11 @@ poetry shell                # Activate Poetry environment
 
 ### Running Services
 ```bash
-make start                  # Start infrastructure (Docker services: Kafka, Marquez, ClickHouse, OTEL Collector)
+make start                  # Start infrastructure (Docker services: Kafka, Marquez, ClickHouse, Grafana)
 make setup-grafana-plugins  # Install required Grafana plugins (ClickHouse datasource)
-make run-api                # Run FastAPI server (port 8000) - sends OTEL data to collector
+make run-api                # Run FastAPI server (port 8000) - central ingestion API
 make run-lineage-consumer   # Run OpenLineage event consumer (Kafka → Marquez)
-# Note: OTEL Collector runs in Docker, no separate OTEL consumer needed
+# Note: Service provides central ingestion endpoints for team SDKs
 ```
 
 ### Code Quality (MUST RUN BEFORE COMMITTING)
@@ -75,54 +75,82 @@ docker logs -f data-lineage-hub-kafka-1  # Follow specific service logs
 
 ## Architecture & Key Components
 
-### Observability Flow Architecture
+### Unified Source Structure
 
-1. **OpenTelemetry SDK** → **OTEL Collector** → **ClickHouse Backend**
-   - FastAPI app sends OTLP data to OTEL Collector (port 4317/4318)
-   - OTEL Collector processes and routes to: ClickHouse for metrics storage
-   - Standards-compliant, vendor-agnostic approach
+After recent reorganization, all code is now unified under `src/` with clean separation:
+
+```
+src/
+├── api/                    # FastAPI central ingestion endpoints
+├── consumers/              # Kafka event consumers (lineage → Marquez)
+├── services/               # Core business logic and namespace management
+├── utils/                  # Shared utilities (Kafka, ClickHouse, logging, OTEL)
+├── sdk/                    # ✅ Unified SDK (no nesting) - teams import from src.sdk
+│   ├── client.py           # LineageHubClient, TelemetryClient
+│   ├── decorators.py       # @lineage_track, @telemetry_track
+│   ├── config.py           # SDK configuration management
+│   └── models.py           # Pydantic models for lineage events
+├── examples/               # ✅ SDK usage examples (moved from nested structure)
+└── main.py                 # FastAPI application entry point
+
+tests/
+└── sdk/                    # ✅ SDK tests mirror src structure
+    ├── test_client.py
+    ├── test_config.py
+    └── test_decorators.py
+```
+
+### Centralized Service Architecture
+
+1. **Team SDK Integration**: Teams use `@lineage_track` decorators from `src.sdk`
+   - Simple dict-based input/output specifications
+   - Automatic namespace isolation per team
+   - SDK sends events to central hub API
 
 2. **Lineage Flow**: **OpenLineage** → **Kafka** → **Marquez**
-   - KafkaEventPublisher (`src/utils/kafka_client.py`): Publishes lineage events
+   - Central ingestion API receives events from team SDKs
+   - KafkaEventPublisher publishes lineage events to Kafka topics
    - LineageConsumer forwards events to Marquez API
-   - Separate from observability data (different concern)
+   - Real-time data lineage visualization
 
 3. **Configuration**:
-   - OTEL configuration in `src/utils/otel_config.py`
-   - Uses OTLP exporters instead of custom Kafka exporters
-   - PipelineMetrics class generates custom business metrics
+   - Namespace-based multi-tenant isolation
+   - Team-specific dataset views in Marquez
+   - Cross-team data discovery capabilities
 
-### Pipeline Execution Flow
+### SDK Integration Flow
 
-1. **API Endpoint** (`/api/v1/pipeline/run`) → Creates background task
-2. **PipelineExecutor** (`src/pipeline/executor.py`) → Orchestrates stages
-3. **Pipeline Stages** (`src/pipeline/stages.py`):
-   - `@openlineage_job` decorator auto-tracks lineage
-   - Extract → Transform → Load stages
-   - Each stage emits OpenLineage events (START/COMPLETE/FAIL)
-4. **OpenLineageTracker** (`src/utils/openlineage_client.py`):
-   - Manages run lifecycle
-   - Creates datasets with schema information
-   - Publishes events to Kafka
+1. **Team Integration**: Teams import `from src.sdk` directly
+2. **Decorator Usage**: Add `@lineage_track` to pipeline functions
+3. **Dataset Specification**: Use dict format for inputs/outputs:
+   ```python
+   from src.sdk import lineage_track
+
+   @lineage_track(
+       inputs=[{"type": "mysql", "name": "users.table", "format": "table", "namespace": "prod-db"}],
+       outputs=[{"type": "s3", "name": "s3://bucket/output.parquet", "format": "parquet", "namespace": "processed"}]
+   )
+   ```
+4. **Event Processing**: SDK sends events to central hub → Kafka → Marquez
 
 ### Data Storage Layer
 
-1. **OTEL Collector** (Docker container):
-   - Receives OTLP data from FastAPI app
-   - Exports to ClickHouse for metrics and traces (Grafana dashboards)
-   - Configuration via `docker/otel-collector-config.yaml`
-
-2. **Marquez Integration**:
+1. **Marquez Integration**:
    - LineageConsumer forwards OpenLineage events via HTTP to Marquez API
    - Endpoint: `/api/v1/lineage`
    - Async HTTP client with retry logic
-   - Separate from observability data pipeline
+   - Multi-tenant namespace support
+
+2. **ClickHouse Storage**:
+   - Optional metrics storage for pipeline performance
+   - Grafana dashboards for organizational visibility
+   - Time-series data for trend analysis
 
 ### Configuration & Dependencies
 
 - **Settings** (`src/config.py`): Pydantic Settings with `.env` support
 - **Logging** (`src/utils/logging_config.py`): Structured logging via structlog
-- **OTEL Config** (`src/utils/otel_config.py`): Tracing and metrics setup
+- **SDK Configuration**: Namespace and endpoint configuration for teams
 
 ## Key Integration Points
 
@@ -137,11 +165,11 @@ Events are structured with:
 - **Producer**: Uses confluent-kafka Producer with delivery callbacks
 - **Consumer**: Uses confluent-kafka Consumer with auto-commit
 - **Serialization**: JSON encoding with UTF-8
-- **Keys**: run_id (OpenLineage), trace_id (OTEL spans), service_name (metrics)
+- **Keys**: run_id for OpenLineage events, namespace-based partitioning
 
-### Consumer Batch Processing
-- OTelConsumer batches messages (default 100) before ClickHouse insertion
-- LineageConsumer forwards immediately to maintain real-time lineage
+### Consumer Processing
+- LineageConsumer forwards OpenLineage events immediately to maintain real-time lineage
+- Namespace-based event routing for multi-tenant isolation
 
 ## Pre-commit Hooks
 
@@ -156,11 +184,12 @@ Hooks run automatically on commit. Manual run: `poetry run pre-commit run --all-
 
 ## Common Development Tasks
 
-### Adding New Pipeline Stage
+### Using SDK in Team Repositories
 
-1. Create method with `@openlineage_job` decorator in `src/pipeline/stages.py`
-2. Define `JobInfo` with inputs/outputs datasets
-3. Add stage to executor in `src/pipeline/executor.py`
+1. Install SDK: `pip install data-lineage-hub-sdk`
+2. Configure namespace: Set `LINEAGE_NAMESPACE="team-name"`
+3. Add decorators to pipeline functions with dict-based dataset specifications
+4. Events automatically flow to central hub → Kafka → Marquez
 
 ### Modifying Kafka Topics
 
@@ -231,4 +260,3 @@ Hooks run automatically on commit. Manual run: `poetry run pre-commit run --all-
 - **API Documentation**: <http://localhost:8000/docs>
 - **Marquez UI**: <http://localhost:3000> (lineage visualization)
 - **Grafana**: <http://localhost:3001> (admin/admin)
-- **OTEL Collector**: <http://localhost:4317> (OTLP gRPC), <http://localhost:4318> (OTLP HTTP)
