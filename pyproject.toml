@@ -22,17 +22,14 @@ pydantic-settings = "2.10.1"
 # OpenLineage
 openlineage-python = "1.37.0"
 
-# OpenTelemetry
+# OpenTelemetry (for FastAPI internal instrumentation)
 opentelemetry-api = "1.36.0"
 opentelemetry-sdk = "1.36.0"
 opentelemetry-instrumentation = "0.57b0"
 opentelemetry-instrumentation-fastapi = "0.57b0"
 opentelemetry-instrumentation-requests = "0.57b0"
-opentelemetry-exporter-jaeger = "1.21.0"
-opentelemetry-exporter-prometheus = "0.57b0"
 
 # Kafka
-# kafka-python = "2.2.15"
 confluent-kafka = "2.11.1"
 
 # Database drivers

@@ -1,57 +1,168 @@
 # Data Lineage Hub POC
 
-A comprehensive POC demonstrating data pipeline observability using **OpenLineage** and **Marquez** for data lineage tracking, combined with **OpenTelemetry** for distributed tracing/metrics.
+A comprehensive POC demonstrating a centralized enterprise service for data pipeline observability using **OpenLineage** and **Marquez** for data lineage tracking across multiple teams and repositories.
 
 ## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    A[FastAPI Pipeline] --> B[OpenTelemetry SDK]
-    A --> C[OpenLineage Events]
-
-    B --> D[OTEL Collector]
-    C --> E[Kafka]
-
-    D --> F[ClickHouse Exporter]
-    D --> G[Jaeger Exporter]
-    D --> H[Future Exporters]
-
-    E --> I[Lineage Consumer]
-
-    F --> J[ClickHouse DB]
-    G --> K[Jaeger UI]
-    I --> L[Marquez API]
-
-    J --> M[Grafana Dashboards]
-    L --> N[Marquez UI]
-
-    subgraph "Observability Stack"
-        D
-        F
-        G
-        H
-        J
-        K
-        M
+    subgraph "Team Repositories"
+        A[Team A Pipeline] --> |"SDK @lineage_track"| API
+        B[Team B Pipeline] --> |"SDK @lineage_track"| API
+        C[Team C Pipeline] --> |"SDK @lineage_track"| API
     end
 
-    subgraph "Lineage Stack"
-        E
-        I
-        L
-        N
+    subgraph "Central Data Lineage Hub"
+        API[Central API] --> E[Kafka]
+        E --> I[Lineage Consumer]
+        I --> L[Marquez API]
     end
+
+    subgraph "Visualization"
+        L --> N[Marquez UI - Multi-tenant]
+        CH[ClickHouse] --> G[Grafana Dashboards]
+    end
+
+    subgraph "Namespaces"
+        NS1[team-a namespace]
+        NS2[team-b namespace]
+        NS3[team-c namespace]
+    end
+
+    API -.-> NS1
+    API -.-> NS2
+    API -.-> NS3
 ```
 
 ### **Key Components:**
-- **FastAPI Pipeline**: Python service with ETL stages
+- **Central API**: Ingestion service for OpenLineage events from team SDKs
+- **SDK**: `data-lineage-hub-sdk` with `@lineage_track` decorator for teams
 - **OpenLineage**: Standard lineage events → Kafka → Marquez
-- **OpenTelemetry**: Metrics & traces → OTEL Collector → Multiple backends
-- **OTEL Collector**: Standards-compliant telemetry processing hub
-- **ClickHouse**: Time-series storage for metrics (Grafana dashboards)
-- **Jaeger**: Distributed tracing visualization
-- **Grafana**: Pipeline observability dashboards
-- **Marquez**: Data lineage visualization
+- **Multi-tenant**: Namespace-based isolation per team/repository
+- **ClickHouse**: Optional time-series storage for metrics (Grafana dashboards)
+- **Grafana**: Organization-wide pipeline observability dashboards
+- **Marquez**: Data lineage visualization with team namespace views
+
+## 📊 Detailed Data Architecture Flow
+
+The system implements a comprehensive dual-track observability architecture with separate flows for data lineage and telemetry:
+
+```mermaid
+graph TB
+    subgraph "SDK Layer"
+        SDK[SDK Decorators<br/>@lineage_track<br/>@telemetry_track]
+        LC[LineageHubClient<br/>Async HTTP Client]
+        TC[TelemetryClient<br/>OTEL Instrumentation]
+    end
+
+    subgraph "API Layer"
+        API[FastAPI Server<br/>:8000]
+        LR[Lineage Routes<br/>/api/v1/lineage/ingest]
+        TR[Telemetry Routes<br/>/api/v1/telemetry/ingest]
+    end
+
+    subgraph "Event Transport"
+        KAFKA[Apache Kafka<br/>:9092]
+        OLT[openlineage-events<br/>Topic]
+        OST[otel-spans<br/>Topic]
+        OMT[otel-metrics<br/>Topic]
+    end
+
+    subgraph "Consumers"
+        OLC[OpenLineage Consumer<br/>Lineage Events → Marquez]
+        OTC[OpenTelemetry Consumer<br/>OTEL Data → ClickHouse]
+    end
+
+    subgraph "Storage & Visualization"
+        subgraph "Lineage Stack"
+            MARQUEZ[(Marquez API<br/>:5000)]
+            POSTGRES[(PostgreSQL<br/>Marquez DB)]
+            MUI[Marquez UI<br/>:3000<br/>Lineage Visualization]
+        end
+
+        subgraph "Observability Stack"
+            CLICKHOUSE[(ClickHouse<br/>:8123<br/>Time-Series DB)]
+            GRAFANA[Grafana<br/>:3001<br/>Metrics Dashboard]
+        end
+    end
+
+    %% Data Flow - Lineage Path
+    SDK -->|HTTP POST| LC
+    LC -->|Lineage Events| LR
+    LR -->|JSON Messages| OLT
+    OLT -->|Consume| OLC
+    OLC -->|HTTP POST| MARQUEZ
+    MARQUEZ --> POSTGRES
+    POSTGRES --> MUI
+
+    %% Data Flow - Telemetry Path
+    SDK -->|OTEL Spans/Metrics| TC
+    TC -->|Telemetry Data| TR
+    TR -->|JSON Messages| OST
+    TR -->|JSON Messages| OMT
+    OST -->|Consume| OTC
+    OMT -->|Consume| OTC
+    OTC -->|Batch Insert| CLICKHOUSE
+    CLICKHOUSE --> GRAFANA
+
+    %% API Layer
+    API --> LR
+    API --> TR
+
+    %% Styling
+    classDef sdk fill:#e1f5fe
+    classDef api fill:#f3e5f5
+    classDef kafka fill:#fff3e0
+    classDef consumer fill:#e8f5e8
+    classDef storage fill:#fce4ec
+    classDef ui fill:#f1f8e9
+
+    class SDK,LC,TC sdk
+    class API,LR,TR api
+    class KAFKA,OLT,OST,OMT kafka
+    class OLC,OTC consumer
+    class MARQUEZ,POSTGRES,CLICKHOUSE storage
+    class MUI,GRAFANA ui
+```
+
+### Architecture Components
+
+#### **SDK Layer**
+- **@lineage_track**: Decorator for automatic data lineage capture with dataset specifications
+- **@telemetry_track**: Decorator for OpenTelemetry instrumentation and distributed tracing
+- **LineageHubClient**: Async HTTP client for lineage event submission with retry logic
+- **TelemetryClient**: OTEL instrumentation client for spans and metrics collection
+
+#### **API Layer**
+- **FastAPI Server**: Central ingestion service (port 8000) with OpenAPI documentation
+- **Lineage Routes**: `/api/v1/lineage/ingest` - OpenLineage event ingestion with namespace support
+- **Telemetry Routes**: `/api/v1/telemetry/ingest` - OTEL data ingestion for spans and metrics
+
+#### **Event Transport**
+- **Apache Kafka**: Event streaming platform with namespace-aware partitioning and headers
+- **openlineage-events**: Topic for data lineage events with namespace routing
+- **otel-spans**: Topic for distributed tracing spans with trace ID correlation
+- **otel-metrics**: Topic for application metrics with service name grouping
+
+#### **Consumers**
+- **OpenLineage Consumer**: Processes lineage events with immediate forwarding to Marquez
+- **OpenTelemetry Consumer**: Batch processes OTEL data with size-based (100) and time-based (30s) flushing
+
+#### **Storage & Visualization**
+- **Marquez**: OpenLineage-compatible lineage service with RESTful API (port 5000)
+- **PostgreSQL**: Marquez backend database for lineage graph storage
+- **ClickHouse**: Time-series database optimized for observability data with Map columns
+- **Marquez UI**: Interactive data lineage graph visualization (port 3000)
+- **Grafana**: Metrics and tracing dashboards with ClickHouse datasource (port 3001)
+
+### Data Flow Patterns
+
+1. **Lineage Flow**: SDK → FastAPI → Kafka → Consumer → Marquez → PostgreSQL → UI
+2. **Telemetry Flow**: SDK → FastAPI → Kafka → Consumer → ClickHouse → Grafana
+3. **Multi-tenant Support**: Namespace isolation via Kafka headers and message keys
+4. **Batch Processing**: Configurable size-based and time-based flushing for efficiency
+5. **Reliability Features**: Async HTTP clients, Kafka delivery callbacks, automatic retry logic
+6. **Data Integrity**: Type-safe Pydantic models, comprehensive error handling, structured logging
 
 ## 🚀 Quick Start
 
@@ -116,7 +227,6 @@ poetry install --with dev
 # 3. Run services using Poetry
 poetry run python -m src.main
 poetry run python -m src.consumers.lineage_consumer
-poetry run python -m src.consumers.otel_consumer
 ```
 
 ### Option 4: Using Poetry Shell
@@ -129,7 +239,6 @@ poetry shell
 # Now you can run commands directly (no 'poetry run' needed)
 python -m src.main
 python -m src.consumers.lineage_consumer
-python -m src.consumers.otel_consumer
 ```
 
 ### Virtual Environment
@@ -146,30 +255,41 @@ The project uses Poetry to manage dependencies and virtual environments:
 - **API Documentation**: <http://localhost:8000/docs>
 - **Marquez UI**: <http://localhost:3000> (Data lineage visualization)
 - **Grafana**: <http://localhost:3001> (admin/admin - Pipeline metrics & dashboards)
-- **Jaeger UI**: <http://localhost:16686> (Distributed tracing - via OTEL Collector)
-- **OTEL Collector**: <http://localhost:4317> (OTLP gRPC), <http://localhost:4318> (OTLP HTTP)
 
-## 🧪 Testing the Pipeline
+## 🧪 Testing the Service
 
 ```bash
-# Test sample pipeline
-curl -X POST http://localhost:8000/api/v1/pipeline/run \
+# Test central ingestion API
+curl -X POST http://localhost:8000/api/v1/lineage/ingest \
   -H 'Content-Type: application/json' \
-  -d '{"pipeline_name": "sample-etl", "input_path": "data/sample_input.csv", "output_path": "data/output.csv"}'
+  -d '{"namespace": "demo-team", "events": [/* OpenLineage events */]}'
 
-# Check pipeline status
-curl http://localhost:8000/api/v1/metrics
+# Check service health
+curl http://localhost:8000/api/v1/health
+
+# SDK usage example (from team repositories):
+from src.sdk import lineage_track
+
+@lineage_track(
+    job_name="data_processing",
+    inputs=[{"type": "mysql", "name": "users.table", "format": "table", "namespace": "prod-db"}],
+    outputs=[{"type": "s3", "name": "s3://bucket/output.parquet", "format": "parquet", "namespace": "processed"}]
+)
+def process_data():
+    # Team's pipeline logic
+    pass
 ```
 
 ## 📁 Project Structure
 
-- `src/` - Main application code
-  - `api/` - FastAPI routes and models
-  - `pipeline/` - ETL pipeline stages
-  - `consumers/` - Kafka event consumers
-  - `utils/` - Shared utilities
-- `docker/` - Docker configurations
-- `data/` - Sample data files
+- `src/` - Central service application code
+  - `api/` - FastAPI ingestion API endpoints
+  - `consumers/` - Kafka event consumers (lineage processing)
+  - `utils/` - Shared utilities and configurations
+- `sdk/` - Team SDK package (`data-lineage-hub-sdk`)
+  - `data_lineage_hub_sdk/` - SDK source code with decorators
+  - `examples/` - SDK usage examples for teams
+- `docker/` - Docker configurations for infrastructure
 - `dashboards/` - Grafana dashboard configs
 - `scripts/` - Setup and utility scripts
 
@@ -191,8 +311,7 @@ make dev-setup              # Complete development setup
 
 ```bash
 make run-api                # Run FastAPI server
-make run-lineage-consumer   # Run OpenLineage consumer
-make run-otel-consumer      # Run OpenTelemetry consumer
+make run-lineage-consumer   # Run OpenLineage consumer (Kafka → Marquez)
 ```
 
 #### Code Quality
@@ -398,23 +517,23 @@ Recommended extensions will be suggested when you open the project.
 
 ## 📊 What You'll See
 
-1. **OpenLineage Events** in Marquez showing data lineage graphs
-2. **OpenTelemetry Traces** and **Metrics** via OTEL Collector to ClickHouse
-3. **Metrics & Dashboards** in Grafana showing pipeline performance
-4. **Real-time Processing** through Kafka topics
+1. **Multi-tenant Data Lineage** in Marquez with namespace-based team views
+2. **Team SDK Integration** - Simple decorator usage across different repositories
+3. **Real-time Event Processing** through Kafka topics
+4. **Organization-wide Dashboards** in Grafana (optional) showing pipeline performance
+5. **Cross-team Data Discovery** - Teams can find datasets from other teams (with permissions)
 
 ## 🛠️ Technology Stack
 
-### **Application Layer**
-- **Python 3.11+** with FastAPI for pipeline execution
+### **Central Service Layer**
+- **Python 3.11+** with FastAPI for central ingestion API
 - **Poetry** for dependency management
 - **Ruff** for code formatting and linting
 
-### **Observability Stack**
-- **OpenTelemetry SDK** for metrics and tracing instrumentation
-- **OTEL Collector** for telemetry data processing and routing
-- **ClickHouse** for metrics storage (time-series data)
-- **Grafana** for observability dashboards
+### **SDK Layer**
+- **data-lineage-hub-sdk** - Lightweight Python package for teams
+- **@lineage_track decorator** - Simple integration pattern
+- **Dict-based specifications** - Explicit dataset definitions
 
 ### **Data Lineage Stack**
 - **OpenLineage** for standardized lineage events
@@ -422,9 +541,13 @@ Recommended extensions will be suggested when you open the project.
 - **Marquez** for lineage storage and visualization
 - **PostgreSQL** for Marquez backend storage
 
+### **Optional Observability Stack**
+- **ClickHouse** for metrics storage (time-series data)
+- **Grafana** for organization-wide dashboards
+
 ### **Infrastructure**
 - **Docker & Docker Compose** for containerized services
-- **Nginx** (future) for service routing
+- **Multi-tenant architecture** with namespace isolation
 
 ## 📄 License
 
@@ -432,7 +555,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 🤝 Contributing
 
-Contributions are welcome! This project demonstrates modern data pipeline observability patterns using industry-standard tools and protocols.
+Contributions are welcome! This project demonstrates a centralized enterprise service architecture for data lineage tracking across multiple teams using industry-standard OpenLineage specification.
 
 ## 📞 Support
 

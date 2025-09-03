@@ -363,3 +363,4 @@ activate.sh
 # MCP
 .serena/
 .claude/
+.mcp.json

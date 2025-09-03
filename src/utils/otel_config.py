@@ -1,66 +1,111 @@
-"""OpenTelemetry configuration and instrumentation."""
+"""OpenTelemetry configuration with Kafka publishing."""
+
+from collections.abc import Sequence
 
 import structlog
 from opentelemetry import metrics, trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from src.config import settings
+from src.utils.kafka_client import get_kafka_publisher
 
 
 logger = structlog.get_logger(__name__)
 
 
+class KafkaSpanExporter(SpanExporter):
+    """Custom span exporter that sends spans to Kafka."""
+
+    def __init__(self, namespace: str = "internal"):
+        self.kafka_publisher = get_kafka_publisher()
+        self.namespace = namespace
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        """Export spans to Kafka."""
+        try:
+            for span in spans:
+                span_data = {
+                    "traceId": format(span.context.trace_id, "032x"),
+                    "spanId": format(span.context.span_id, "016x"),
+                    "parentSpanId": format(span.parent.span_id, "016x")
+                    if span.parent
+                    else "",
+                    "operationName": span.name,
+                    "serviceName": span.resource.attributes.get(
+                        "service.name", "unknown"
+                    ),
+                    "duration": span.end_time - span.start_time if span.end_time else 0,
+                    "startTime": span.start_time,
+                    "endTime": span.end_time or 0,
+                    "status": {"code": span.status.status_code.name},
+                    "kind": span.kind.name,
+                    "tags": dict(span.attributes) if span.attributes else {},
+                    "process": {
+                        "serviceName": span.resource.attributes.get(
+                            "service.name", "unknown"
+                        ),
+                        "tags": dict(span.resource.attributes)
+                        if span.resource.attributes
+                        else {},
+                    },
+                }
+
+                trace_id = format(span.context.trace_id, "032x")
+                success = self.kafka_publisher.publish_otel_span(
+                    span_data, trace_id, self.namespace
+                )
+
+                if not success:
+                    logger.warning("Failed to publish span to Kafka", trace_id=trace_id)
+
+            return SpanExportResult.SUCCESS
+
+        except Exception as e:
+            logger.exception("Error exporting spans to Kafka", error=str(e))
+            return SpanExportResult.FAILURE
+
+    def shutdown(self) -> None:
+        """Shutdown the exporter."""
+
+
 def configure_opentelemetry() -> None:
-    """Configure OpenTelemetry tracing and metrics."""
+    """Configure OpenTelemetry with Kafka publishing."""
 
     # Create resource with service information
     resource = Resource.create(
         {
             SERVICE_NAME: settings.otel_service_name,
             SERVICE_VERSION: settings.otel_service_version,
-            "service.namespace": settings.openlineage_namespace,
+            "service.namespace": settings.default_namespace,
         }
     )
 
-    # Configure tracing
+    # Configure tracing with Kafka exporter
     trace_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(trace_provider)
 
-    # OTLP span exporter for OTEL Collector
-    otlp_span_exporter = OTLPSpanExporter(
-        endpoint=settings.otel_collector_endpoint,
-        insecure=True,  # Use insecure connection for local development
-    )
-    span_processor = BatchSpanProcessor(otlp_span_exporter)
+    # Use Kafka span exporter instead of OTLP
+    kafka_span_exporter = KafkaSpanExporter(namespace="internal")
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    span_processor = BatchSpanProcessor(kafka_span_exporter)
     trace_provider.add_span_processor(span_processor)
-    logger.info(
-        "OTLP span exporter configured", endpoint=settings.otel_collector_endpoint
-    )
+    logger.info("Kafka span exporter configured for internal service")
 
-    # Configure metrics with OTLP exporter
-    otlp_metrics_exporter = OTLPMetricExporter(
-        endpoint=settings.otel_collector_endpoint,
-        insecure=True,  # Use insecure connection for local development
-    )
-    metric_reader = PeriodicExportingMetricReader(
-        exporter=otlp_metrics_exporter,
-        export_interval_millis=10000,  # Export every 10 seconds for faster feedback
-    )
-    metric_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+    # Configure basic meter provider (metrics will be handled by PipelineMetrics class)
+    metric_provider = MeterProvider(resource=resource)
     metrics.set_meter_provider(metric_provider)
-    logger.info(
-        "OTLP metrics exporter configured", endpoint=settings.otel_collector_endpoint
-    )
+    logger.info("Basic metric provider configured")
 
-    logger.info("OpenTelemetry configured", service=settings.otel_service_name)
+    logger.info(
+        "OpenTelemetry configured with Kafka publishing",
+        service=settings.otel_service_name,
+    )
 
 
 def instrument_app(app) -> None:

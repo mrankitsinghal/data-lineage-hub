@@ -115,22 +115,6 @@ services:
       - ./dashboards:/etc/grafana/provisioning/dashboards
       - ./docker/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
 
-  # OpenTelemetry Collector
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.134.0
-    container_name: otel-collector
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    depends_on:
-      - clickhouse
-    ports:
-      - "4317:4317"   # OTLP gRPC receiver
-      - "4318:4318"   # OTLP HTTP receiver
-      - "8888:8888"   # Prometheus metrics
-      - "8889:8889"   # Prometheus metrics (localhost)
-    volumes:
-      - ./docker/otel-collector-config.yaml:/etc/otel-collector-config.yaml
-    restart: unless-stopped
-
   # Redis for caching
   redis:
     image: redis:7-alpine

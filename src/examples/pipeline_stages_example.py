@@ -1,4 +1,7 @@
-"""Data pipeline stages with OpenLineage tracking."""
+"""
+Updated pipeline stages using the simplified @lineage_track decorator.
+Demonstrates real ETL pipeline with dict-based dataset specifications.
+"""
 
 import os
 import time
@@ -7,42 +10,46 @@ from typing import Any
 import pandas as pd
 import structlog
 
-from src.utils.openlineage_client import (
-    DatasetInfo,
-    OpenLineageTracker,
-    openlineage_job,
-)
+from src.sdk import configure, lineage_track
 
 
 logger = structlog.get_logger(__name__)
 
+# Configure the SDK
+configure(
+    hub_endpoint="http://localhost:8000",
+    api_key="demo-api-key",
+    namespace="pipeline-example",
+    debug=True,
+)
+
 
 class PipelineStages:
-    """Collection of pipeline stages with lineage tracking."""
+    """Collection of pipeline stages with simplified lineage tracking."""
 
     def __init__(self, run_id: str):
         self.run_id = run_id
-        self.tracker = OpenLineageTracker()
 
-    @openlineage_job(
+    @lineage_track(
         job_name="extract_stage",
         description="Extract data from input source",
         inputs=[
-            DatasetInfo(
-                namespace="file",
-                name="input_data",
-                schema_fields=[
-                    {"name": "id", "type": "integer", "description": "Record ID"},
-                    {"name": "name", "type": "string", "description": "Record name"},
-                    {"name": "value", "type": "float", "description": "Record value"},
-                    {
-                        "name": "timestamp",
-                        "type": "timestamp",
-                        "description": "Record timestamp",
-                    },
-                ],
-            )
+            {
+                "type": "file",
+                "name": "input_data.csv",
+                "format": "csv",
+                "namespace": "raw-data",
+            }
         ],
+        outputs=[
+            {
+                "type": "dataframe",
+                "name": "extracted_df",
+                "format": "table",
+                "namespace": "memory",
+            }
+        ],
+        tags={"stage": "extract", "pipeline": "etl"},
     )
     def extract(self, input_path: str) -> pd.DataFrame:
         """Extract stage - read data from input source."""
@@ -73,43 +80,26 @@ class PipelineStages:
             logger.exception("Extract stage failed", error=str(e), run_id=self.run_id)
             raise
 
-    @openlineage_job(
+    @lineage_track(
         job_name="transform_stage",
         description="Transform and clean data",
-        outputs=[
-            DatasetInfo(
-                namespace="memory",
-                name="transformed_data",
-                schema_fields=[
-                    {"name": "id", "type": "integer", "description": "Record ID"},
-                    {
-                        "name": "name",
-                        "type": "string",
-                        "description": "Cleaned record name",
-                    },
-                    {
-                        "name": "value",
-                        "type": "float",
-                        "description": "Normalized record value",
-                    },
-                    {
-                        "name": "timestamp",
-                        "type": "timestamp",
-                        "description": "Processed timestamp",
-                    },
-                    {
-                        "name": "category",
-                        "type": "string",
-                        "description": "Derived category",
-                    },
-                    {
-                        "name": "is_valid",
-                        "type": "boolean",
-                        "description": "Validation flag",
-                    },
-                ],
-            )
+        inputs=[
+            {
+                "type": "dataframe",
+                "name": "extracted_df",
+                "format": "table",
+                "namespace": "memory",
+            }
         ],
+        outputs=[
+            {
+                "type": "dataframe",
+                "name": "transformed_df",
+                "format": "table",
+                "namespace": "memory",
+            }
+        ],
+        tags={"stage": "transform", "pipeline": "etl", "operation": "clean-enrich"},
     )
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Transform stage - clean and enrich data."""
@@ -167,16 +157,26 @@ class PipelineStages:
             logger.exception("Transform stage failed", error=str(e), run_id=self.run_id)
             raise
 
-    @openlineage_job(
+    @lineage_track(
         job_name="load_stage",
         description="Load data to output destination",
-        outputs=[
-            DatasetInfo(
-                namespace="file",
-                name="output_data",
-                description="Processed data output file",
-            )
+        inputs=[
+            {
+                "type": "dataframe",
+                "name": "transformed_df",
+                "format": "table",
+                "namespace": "memory",
+            }
         ],
+        outputs=[
+            {
+                "type": "file",
+                "name": "processed_output.csv",
+                "format": "csv",
+                "namespace": "processed-data",
+            }
+        ],
+        tags={"stage": "load", "pipeline": "etl", "operation": "persist"},
     )
     def load(self, df: pd.DataFrame, output_path: str) -> dict[str, Any]:
         """Load stage - write data to output destination."""
@@ -251,3 +251,33 @@ class PipelineStages:
         logger.info("Created sample data", records=len(df))
 
         return df
+
+
+# Example usage and demonstration
+def run_pipeline_example() -> None:
+    """Run the complete pipeline example."""
+    import uuid
+
+    run_id = str(object=uuid.uuid4())
+
+    # Initialize pipeline
+    pipeline = PipelineStages(run_id=run_id)
+
+    # Stage 1: Extract
+    input_path = (
+        "/tmp/sample_input.csv"  # Will create sample data since file doesn't exist
+    )
+    extracted_data = pipeline.extract(input_path)
+
+    # Stage 2: Transform
+    transformed_data = pipeline.transform(extracted_data)
+    if "is_valid" in transformed_data.columns:
+        transformed_data["is_valid"].sum()
+
+    # Stage 3: Load
+    output_path = "/tmp/pipeline_output.csv"
+    pipeline.load(transformed_data, output_path)
+
+
+if __name__ == "__main__":
+    run_pipeline_example()
