@@ -159,7 +159,6 @@ cython_debug/
 .idea/
 
 # VS Code
-.vscode/
 *.code-workspace
 
 # macOS
@@ -361,6 +360,5 @@ postgres/data/
 activate.sh
 
 # MCP
-.serena/
-.claude/
+.claude/*.local.json
 .mcp.json

@@ -47,13 +47,13 @@ class DatasetSpec(BaseModel):
 
     def to_openlineage_dataset(self) -> dict[str, Any]:
         """Convert to OpenLineage dataset format."""
-        dataset = {
+        dataset: dict[str, Any] = {
             "namespace": self.namespace or f"{self.type}://default",
             "name": self.name,
         }
 
         # Add facets for additional metadata
-        facets = {}
+        facets: dict[str, Any] = {}
 
         # Data source facet
         facets["dataSource"] = {
@@ -79,7 +79,7 @@ class DatasetSpec(BaseModel):
 
 
 # Example specifications for each adapter type
-ADAPTER_EXAMPLES = {
+ADAPTER_EXAMPLES: dict[AdapterType, list[dict[str, Any]]] = {
     AdapterType.MYSQL: [
         {
             "type": "mysql",

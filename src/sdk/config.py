@@ -66,7 +66,7 @@ _config: LineageHubConfig | None = None
 
 def get_config() -> LineageHubConfig:
     """Get the global configuration instance."""
-    global _config
+    global _config  # noqa: PLW0603  # noqa: PLW0603
     if _config is None:
         _config = LineageHubConfig()
     return _config
@@ -100,7 +100,7 @@ def configure(
     Returns:
         Configured LineageHubConfig instance
     """
-    global _config
+    global _config  # noqa: PLW0603
 
     # Build configuration dict from parameters
     config_dict = {}
@@ -138,5 +138,5 @@ def configure(
 
 def reset_config() -> None:
     """Reset configuration to default values (mainly for testing)."""
-    global _config
+    global _config  # noqa: PLW0603
     _config = None

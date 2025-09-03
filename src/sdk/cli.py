@@ -3,9 +3,11 @@
 import asyncio
 import json
 import sys
-from datetime import UTC
+import uuid
+from datetime import UTC, datetime
 
 import click
+import httpx
 import structlog
 
 from .client import LineageHubClient
@@ -46,13 +48,17 @@ def cli(ctx, endpoint, api_key, namespace, debug):
 
 @cli.command()
 @click.pass_context
-def health(ctx):
+def health(_ctx):
     """Check hub service health."""
 
     async def check_health():
         async with LineageHubClient() as client:
             try:
                 health_status = await client.health_check()
+            except httpx.HTTPError as e:
+                click.echo(f"Health check failed: {e}", err=True)
+                return False
+            else:
                 click.echo(f"Status: {health_status.status}")
                 click.echo(f"Service: {health_status.service}")
                 click.echo(f"Version: {health_status.version}")
@@ -61,9 +67,6 @@ def health(ctx):
                 for dep, status in health_status.dependencies.items():
                     click.echo(f"  {dep}: {status}")
                 return True
-            except Exception as e:
-                click.echo(f"Health check failed: {e}", err=True)
-                return False
 
     success = asyncio.run(check_health())
     sys.exit(0 if success else 1)
@@ -74,7 +77,7 @@ def health(ctx):
 @click.option("--namespace", "-n", help="Target namespace")
 @click.argument("events", nargs=-1)
 @click.pass_context
-def send_events(ctx, file, namespace, events):
+def send_events(_ctx, file, namespace, events):
     """Send lineage events to the hub."""
     if file:
         try:
@@ -102,15 +105,16 @@ def send_events(ctx, file, namespace, events):
                 response = await client.send_lineage_events(
                     event_list, namespace=namespace
                 )
+            except httpx.HTTPError as e:
+                click.echo(f"Failed to send events: {e}", err=True)
+                return False
+            else:
                 click.echo(f"Sent {response.accepted} events successfully")
                 if response.rejected > 0:
                     click.echo(f"Rejected: {response.rejected}")
                     for error in response.errors:
                         click.echo(f"  Error: {error}")
                 return response.rejected == 0
-            except Exception as e:
-                click.echo(f"Failed to send events: {e}", err=True)
-                return False
 
     success = asyncio.run(send())
     sys.exit(0 if success else 1)
@@ -118,13 +122,17 @@ def send_events(ctx, file, namespace, events):
 
 @cli.command()
 @click.pass_context
-def list_namespaces(ctx):
+def list_namespaces(_ctx):
     """List accessible namespaces."""
 
     async def list_ns():
         async with LineageHubClient() as client:
             try:
                 namespaces = await client.list_namespaces()
+            except httpx.HTTPError as e:
+                click.echo(f"Failed to list namespaces: {e}", err=True)
+                return False
+            else:
                 if not namespaces:
                     click.echo("No accessible namespaces found.")
                     return True
@@ -137,9 +145,6 @@ def list_namespaces(ctx):
                     click.echo(f"    Owners: {', '.join(ns.owners)}")
                     click.echo(f"    Created: {ns.created_at}")
                 return True
-            except Exception as e:
-                click.echo(f"Failed to list namespaces: {e}", err=True)
-                return False
 
     success = asyncio.run(list_ns())
     sys.exit(0 if success else 1)
@@ -148,13 +153,17 @@ def list_namespaces(ctx):
 @cli.command()
 @click.argument("namespace_name")
 @click.pass_context
-def get_namespace(ctx, namespace_name):
+def get_namespace(_ctx, namespace_name):
     """Get detailed namespace information."""
 
     async def get_ns():
         async with LineageHubClient() as client:
             try:
                 ns = await client.get_namespace(namespace_name)
+            except httpx.HTTPError as e:
+                click.echo(f"Failed to get namespace: {e}", err=True)
+                return False
+            else:
                 click.echo(f"Namespace: {ns.name}")
                 click.echo(f"Display Name: {ns.display_name}")
                 click.echo(f"Description: {ns.description or 'N/A'}")
@@ -169,9 +178,6 @@ def get_namespace(ctx, namespace_name):
                     for key, value in ns.tags.items():
                         click.echo(f"  {key}: {value}")
                 return True
-            except Exception as e:
-                click.echo(f"Failed to get namespace: {e}", err=True)
-                return False
 
     success = asyncio.run(get_ns())
     sys.exit(0 if success else 1)
@@ -205,11 +211,10 @@ def config(ctx):
 @click.option("--tag", multiple=True, help="Tags in key=value format")
 @click.pass_context
 def create_job_events(
-    ctx, job_name, namespace, run_id, input, output, description, tag
+    ctx, job_name, namespace, run_id, inputs, output, description, tag
 ):
     """Create START and COMPLETE events for a job."""
-    import uuid
-    from datetime import datetime
+
 
     actual_run_id = run_id or str(uuid.uuid4())
     actual_namespace = namespace or ctx.obj["config"].namespace
@@ -237,8 +242,8 @@ def create_job_events(
     if description:
         start_event["job"]["description"] = description
 
-    if input:
-        start_event["inputs"] = [{"namespace": "file", "name": path} for path in input]
+    if inputs:
+        start_event["inputs"] = [{"namespace": "file", "name": path} for path in inputs]
 
     if tags:
         start_event["run"]["facets"] = {
@@ -267,6 +272,10 @@ def create_job_events(
                 response = await client.send_lineage_events(
                     events, namespace=actual_namespace
                 )
+            except httpx.HTTPError as e:
+                click.echo(f"Failed to send events: {e}", err=True)
+                return False
+            else:
                 click.echo(f"Created job events for run ID: {actual_run_id}")
                 click.echo(f"Sent {response.accepted} events successfully")
                 if response.rejected > 0:
@@ -274,9 +283,6 @@ def create_job_events(
                     for error in response.errors:
                         click.echo(f"  Error: {error}")
                 return response.rejected == 0
-            except Exception as e:
-                click.echo(f"Failed to send events: {e}", err=True)
-                return False
 
     success = asyncio.run(send())
     sys.exit(0 if success else 1)

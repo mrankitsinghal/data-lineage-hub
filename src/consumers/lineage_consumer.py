@@ -5,10 +5,15 @@ from typing import Any
 
 import httpx
 import structlog
+from confluent_kafka import Message
 
 from src.config import settings
 from src.utils.kafka_client import KafkaEventConsumer
 from src.utils.logging_config import configure_logging
+
+
+# HTTP status constants
+HTTP_CREATED = 201
 
 
 logger = structlog.get_logger(__name__)
@@ -49,12 +54,12 @@ class LineageConsumer:
         # Process the message asynchronously with smart event loop detection
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._process_message(msg))
+            task = loop.create_task(self._process_message(msg))  # noqa: RUF006, F841
         except RuntimeError:
             # No event loop running, create one
             asyncio.run(self._process_message(msg))
 
-    async def _process_message(self, message) -> None:
+    async def _process_message(self, message: Message) -> None:
         """Process a single OpenLineage event message with namespace support."""
         try:
             # Deserialize the message using the centralized method
@@ -99,7 +104,9 @@ class LineageConsumer:
                 message_partition=message.partition(),
             )
 
-    def _extract_namespace(self, message, event_data: dict[str, Any]) -> str | None:
+    def _extract_namespace(
+        self, message: Message, event_data: dict[str, Any]
+    ) -> str | None:
         """Extract namespace from Kafka message headers or event data."""
         # Try to get namespace from message headers first (preferred)
         if hasattr(message, "headers") and message.headers():
@@ -125,9 +132,12 @@ class LineageConsumer:
                 headers["X-Namespace"] = namespace
 
             # Ensure event has namespace in job metadata for Marquez
-            if namespace and "job" in event_data:
-                if "namespace" not in event_data["job"]:
-                    event_data["job"]["namespace"] = namespace
+            if (
+                namespace
+                and "job" in event_data
+                and "namespace" not in event_data["job"]
+            ):
+                event_data["job"]["namespace"] = namespace
 
             response = await self.http_client.post(
                 self.marquez_endpoint,
@@ -135,27 +145,27 @@ class LineageConsumer:
                 headers=headers,
             )
 
-            if response.status_code == 201:
-                logger.debug(
-                    "Event successfully sent to Marquez",
+            if response.status_code != HTTP_CREATED:
+                logger.warning(
+                    "Marquez returned non-201 status",
+                    status_code=response.status_code,
+                    response_text=response.text,
                     namespace=namespace,
-                    job_name=event_data.get("job", {}).get("name"),
                 )
-                return True
-            logger.warning(
-                "Marquez returned non-201 status",
-                status_code=response.status_code,
-                response_text=response.text,
-                namespace=namespace,
-            )
-            return False
-
+                return False
         except httpx.RequestError as e:
             logger.exception("HTTP request to Marquez failed", error=str(e))
             return False
         except Exception as e:
             logger.exception("Unexpected error forwarding to Marquez", error=str(e))
             return False
+        else:
+            logger.debug(
+                "Event successfully sent to Marquez",
+                namespace=namespace,
+                job_name=event_data.get("job", {}).get("name"),
+            )
+            return True
 
     def _cleanup(self) -> None:
         """Clean up resources."""
@@ -165,7 +175,7 @@ class LineageConsumer:
         # Close HTTP client with smart event loop detection
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self.http_client.aclose())
+            task = loop.create_task(self.http_client.aclose())  # noqa: RUF006, F841
         except RuntimeError:
             # No event loop running, create one
             asyncio.run(self.http_client.aclose())

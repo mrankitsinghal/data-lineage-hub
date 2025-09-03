@@ -107,10 +107,10 @@ class LineageHubClient:
                 f"Health check failed: {e.response.status_code}",
                 status_code=e.response.status_code,
                 response_data=e.response.json() if e.response.content else {},
-            )
+            ) from e
         except Exception as e:
             logger.exception("Health check error", error=str(e))
-            raise APIError(f"Health check error: {e}")
+            raise APIError(f"Health check error: {e}") from e
 
     async def send_lineage_events(
         self,
@@ -154,22 +154,6 @@ class LineageHubClient:
                 json={"lineage_data": request_data.model_dump()},
             )
             response.raise_for_status()
-
-            data = response.json()
-            result = LineageIngestResponse(**data)
-
-            logger.info(
-                "Successfully sent lineage events",
-                accepted=result.accepted,
-                rejected=result.rejected,
-                namespace=result.namespace,
-            )
-
-            if result.errors:
-                logger.warning("Some events were rejected", errors=result.errors[:5])
-
-            return result
-
         except httpx.HTTPStatusError as e:
             error_data = {}
             with contextlib.suppress(builtins.BaseException):
@@ -186,14 +170,29 @@ class LineageHubClient:
                 f"Failed to send lineage events: {e.response.status_code}",
                 status_code=e.response.status_code,
                 response_data=error_data,
-            )
+            ) from e
         except Exception as e:
             logger.exception(
                 "Error sending lineage events",
                 error=str(e),
                 event_count=len(events),
             )
-            raise APIError(f"Error sending lineage events: {e}")
+            raise APIError(f"Error sending lineage events: {e}") from e
+        else:
+            data = response.json()
+            result = LineageIngestResponse(**data)
+
+            logger.info(
+                "Successfully sent lineage events",
+                accepted=result.accepted,
+                rejected=result.rejected,
+                namespace=result.namespace,
+            )
+
+            if result.errors:
+                logger.warning("Some events were rejected", errors=result.errors[:5])
+
+            return result
 
     async def send_telemetry_data(
         self,
@@ -246,24 +245,6 @@ class LineageHubClient:
                 json={"telemetry_request": request_data.model_dump()},
             )
             response.raise_for_status()
-
-            data = response.json()
-            result = TelemetryIngestResponse(**data)
-
-            logger.info(
-                "Successfully sent telemetry data",
-                traces_accepted=result.traces_accepted,
-                metrics_accepted=result.metrics_accepted,
-                namespace=result.namespace,
-            )
-
-            if result.errors:
-                logger.warning(
-                    "Some telemetry data was rejected", errors=result.errors[:5]
-                )
-
-            return result
-
         except httpx.HTTPStatusError as e:
             error_data = {}
             with contextlib.suppress(builtins.BaseException):
@@ -281,7 +262,7 @@ class LineageHubClient:
                 f"Failed to send telemetry data: {e.response.status_code}",
                 status_code=e.response.status_code,
                 response_data=error_data,
-            )
+            ) from e
         except Exception as e:
             logger.exception(
                 "Error sending telemetry data",
@@ -289,7 +270,24 @@ class LineageHubClient:
                 trace_count=len(traces),
                 metric_count=len(metrics),
             )
-            raise APIError(f"Error sending telemetry data: {e}")
+            raise APIError(f"Error sending telemetry data: {e}") from e
+        else:
+            data = response.json()
+            result = TelemetryIngestResponse(**data)
+
+            logger.info(
+                "Successfully sent telemetry data",
+                traces_accepted=result.traces_accepted,
+                metrics_accepted=result.metrics_accepted,
+                namespace=result.namespace,
+            )
+
+            if result.errors:
+                logger.warning(
+                    "Some telemetry data was rejected", errors=result.errors[:5]
+                )
+
+            return result
 
     async def get_namespace(self, namespace_name: str) -> NamespaceInfo:
         """Get namespace information by name."""
@@ -315,10 +313,10 @@ class LineageHubClient:
                 f"Failed to get namespace '{namespace_name}': {e.response.status_code}",
                 status_code=e.response.status_code,
                 response_data=error_data,
-            )
+            ) from e
         except Exception as e:
             logger.exception("Error getting namespace", error=str(e))
-            raise APIError(f"Error getting namespace: {e}")
+            raise APIError(f"Error getting namespace: {e}") from e
 
     async def list_namespaces(self) -> list[NamespaceInfo]:
         """List accessible namespaces."""
@@ -343,10 +341,10 @@ class LineageHubClient:
                 f"Failed to list namespaces: {e.response.status_code}",
                 status_code=e.response.status_code,
                 response_data=error_data,
-            )
+            ) from e
         except Exception as e:
             logger.exception("Error listing namespaces", error=str(e))
-            raise APIError(f"Error listing namespaces: {e}")
+            raise APIError(f"Error listing namespaces: {e}") from e
 
 
 class TelemetryClient:
@@ -482,7 +480,7 @@ class BatchingLineageClient:
 
         try:
             await self._client.send_lineage_events(events_to_send)
-            logger.debug(f"Flushed {len(events_to_send)} events")
+            logger.debug("Flushed %d events", len(events_to_send))
         except Exception as e:
             logger.exception(
                 "Error flushing events", error=str(e), event_count=len(events_to_send)

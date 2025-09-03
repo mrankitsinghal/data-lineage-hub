@@ -10,19 +10,25 @@ import requests
 BASE_URL = "http://localhost:8000/api/v1"
 
 
+# HTTP status constants
+HTTP_OK = 200
+HTTP_CREATED = 201
+
+
 def test_health_endpoint() -> bool:
     """Test the health endpoint."""
     try:
         response = requests.get(f"{BASE_URL}/health", timeout=10)
-        if response.status_code == 200:
-            health_data = response.json()
-            print(f"✅ Health check passed - Service: {health_data['service']}")
-            return True
-        print(f"❌ Health check failed - Status: {response.status_code}")
-        return False
-    except Exception as e:
+        if response.status_code != HTTP_OK:
+            print(f"❌ Health check failed - Status: {response.status_code}")
+            return False
+    except requests.RequestException as e:
         print(f"❌ Health check error: {e}")
         return False
+    else:
+        health_data = response.json()
+        print(f"✅ Health check passed - Service: {health_data['service']}")
+        return True
 
 
 def run_sample_pipeline() -> dict[str, Any]:
@@ -40,28 +46,28 @@ def run_sample_pipeline() -> dict[str, Any]:
             f"{BASE_URL}/pipeline/run", json=pipeline_request, timeout=30
         )
 
-        if response.status_code == 200:
-            run_data = response.json()
-            print(f"✅ Pipeline started - Run ID: {run_data['run_id']}")
-            return run_data
-        print(f"❌ Pipeline start failed - Status: {response.status_code}")
-        print(f"Response: {response.text}")
-        return {}
-
-    except Exception as e:
+        if response.status_code != HTTP_OK:
+            print(f"❌ Pipeline start failed - Status: {response.status_code}")
+            print(f"Response: {response.text}")
+            return {}
+    except requests.RequestException as e:
         print(f"❌ Pipeline start error: {e}")
         return {}
+    else:
+        run_data = response.json()
+        print(f"✅ Pipeline started - Run ID: {run_data['run_id']}")
+        return run_data
 
 
 def check_pipeline_status(run_id: str) -> dict[str, Any]:
     """Check the status of a pipeline run."""
     try:
         response = requests.get(f"{BASE_URL}/pipeline/run/{run_id}", timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        print(f"❌ Status check failed - Status: {response.status_code}")
-        return {}
-    except Exception as e:
+        if response.status_code != HTTP_OK:
+            print(f"❌ Status check failed - Status: {response.status_code}")
+            return {}
+        return response.json()
+    except requests.RequestException as e:
         print(f"❌ Status check error: {e}")
         return {}
 
@@ -101,7 +107,7 @@ def check_metrics() -> None:
     """Check pipeline metrics."""
     try:
         response = requests.get(f"{BASE_URL}/metrics", timeout=10)
-        if response.status_code == 200:
+        if response.status_code == HTTP_OK:
             metrics = response.json()
             print("📊 Pipeline Metrics:")
             print(f"   Total runs: {metrics['pipeline_runs_total']}")
@@ -110,7 +116,7 @@ def check_metrics() -> None:
             print(f"   Avg duration: {metrics['avg_duration_ms']:.1f}ms")
         else:
             print(f"❌ Metrics check failed - Status: {response.status_code}")
-    except Exception as e:
+    except requests.RequestException as e:
         print(f"❌ Metrics check error: {e}")
 
 

@@ -1,0 +1,57 @@
+{
+    "recommendations": [
+        // Python Development
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "ms-python.poetry",
+        // Docker & Containers
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        // YAML & Configuration
+        "redhat.vscode-yaml",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        // TOML & Configuration
+        "tamasfe.even-better-toml",
+        // JSON & Data
+        "ms-vscode.vscode-json",
+        "mechatroner.rainbow-csv",
+        // Git & Version Control
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        // REST API Development
+        "humao.rest-client",
+        "ms-vscode.vscode-thunder-client",
+        // Code Quality & Productivity
+        "ms-vscode.vscode-todo-highlight",
+        "streetsidesoftware.code-spell-checker",
+        "ms-vscode.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        // Database & Data Tools
+        "ms-mssql.mssql",
+        "cweijan.vscode-postgresql-client2",
+        // Observability & Monitoring
+        "ms-vscode.vscode-prometheus",
+        "grafana.vscode-jsonnet",
+        // Markdown & Documentation
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        // Environment & Configuration
+        "mikestead.dotenv",
+        "ms-vscode.makefile-tools",
+        // Testing
+        "ms-python.pytest",
+        "littlefoxteam.vscode-python-test-adapter",
+        // Code Navigation & Search
+        "ms-vscode.vscode-outline",
+        "alefragnani.bookmarks"
+    ],
+    "unwantedRecommendations": [
+        "ms-python.pylint",
+        "ms-python.flake8",
+        "ms-python.black-formatter",
+        "ms-python.isort",
+        "ms-python.autopep8"
+    ]
+}
